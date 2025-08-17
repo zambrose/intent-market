@@ -25,6 +25,7 @@ interface Agent {
   totalSubmissions: number
   personality: string
   walletAddress?: string
+  walletBalance?: number
 }
 
 interface Intention {
@@ -72,11 +73,12 @@ export default function Home() {
             y: Math.random() * 60 + 20,
             status: 'sleeping' as const,
             stakedAmount: 10 + Math.random() * 40, // $10-50 staked
-            totalEarnings: walletData?.balance || Math.random() * 500,
+            totalEarnings: Math.random() * 500,
             winRate: Math.random() * 0.4 + 0.1,
             totalSubmissions: Math.floor(Math.random() * 100),
             personality: personality.style,
-            walletAddress: walletData?.walletAddress
+            walletAddress: walletData?.walletAddress,
+            walletBalance: walletData?.balance || 0
           }
         })
         setAgents(initialAgents)
@@ -206,12 +208,38 @@ export default function Home() {
       await new Promise(resolve => setTimeout(resolve, 800))
     }
 
-    // Phase 4: Give micro-payments to all participants
+    // Phase 4: Send real micro-payments to all participants
+    const participatingAgents = agents.filter(a => a.stakedAmount >= 10 && a.suggestion)
+    
+    for (const agent of participatingAgents) {
+      if (demoUserId) {
+        try {
+          const res = await fetch('/api/transfers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fromUserId: demoUserId,
+              toUserId: agent.id,
+              amountUsd: microPaymentAmount,
+              intentionId,
+              kind: 'PARTICIPATION'
+            })
+          })
+          
+          const result = await res.json()
+          console.log(`💰 Participation reward sent to ${agent.name}:`, result)
+        } catch (error) {
+          console.error(`Failed to send participation reward to ${agent.name}:`, error)
+        }
+      }
+    }
+    
     setAgents(prev => prev.map(agent => {
-      if (agent.stakedAmount >= 10) {
+      if (agent.stakedAmount >= 10 && agent.suggestion) {
         return {
           ...agent,
           totalEarnings: agent.totalEarnings + microPaymentAmount,
+          walletBalance: (agent.walletBalance || 0) + microPaymentAmount,
           reward: microPaymentAmount
         }
       }
@@ -230,37 +258,6 @@ export default function Home() {
     setIsSimulating(false)
   }
 
-  const selectWinners = async () => {
-    if (!agents.length || !activeIntention) return
-
-    // Select top 3 based on some criteria
-    const winners = agents
-      .filter(a => a.suggestion)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map(a => a.id)
-
-    setSelectedAgents(winners)
-
-    // Update agent status and earnings
-    setAgents(prev => prev.map(agent => {
-      if (winners.includes(agent.id)) {
-        const isTopWinner = winners[0] === agent.id
-        const winReward = isTopWinner ? 0.075 : 0.05
-        return {
-          ...agent,
-          status: 'rewarded',
-          reward: winReward,
-          totalEarnings: agent.totalEarnings + winReward,
-          winRate: (agent.winRate * agent.totalSubmissions + 1) / (agent.totalSubmissions + 1)
-        }
-      }
-      return agent
-    }))
-
-    // Store training data
-    await storeTrainingData(activeIntention.id, winners)
-  }
 
   const storeTrainingData = async (intentionId: string, winnerIds: string[]) => {
     // In production, this would call an API to store training data
@@ -285,6 +282,51 @@ export default function Home() {
   const handleAgentClick = (agent: Agent) => {
     setSelectedAgent(agent)
     setShowAgentModal(true)
+  }
+
+  const handleRewardAgent = async (agent: Agent) => {
+    if (!demoUserId || !activeIntention) {
+      console.error('Missing demo user or active intention')
+      return
+    }
+    
+    try {
+      // Send selection reward to agent
+      const res = await fetch('/api/transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromUserId: demoUserId,
+          toUserId: agent.id,
+          amountUsd: 0.05,
+          intentionId: activeIntention.id,
+          kind: 'SELECTION'
+        })
+      })
+      
+      const result = await res.json()
+      console.log('Selection reward sent:', result)
+      
+      // Update local state
+      setSelectedAgents(prev => [...prev, agent.id])
+      setAgents(prev => prev.map(a => 
+        a.id === agent.id 
+          ? { 
+              ...a, 
+              status: 'rewarded' as const,
+              reward: 0.05,
+              totalEarnings: a.totalEarnings + 0.05,
+              walletBalance: (a.walletBalance || 0) + 0.05,
+              winRate: (a.winRate * a.totalSubmissions + 1) / (a.totalSubmissions + 1)
+            }
+          : a
+      ))
+      
+      // Store training data
+      await storeTrainingData(activeIntention.id, [agent.id])
+    } catch (error) {
+      console.error('Failed to reward agent:', error)
+    }
   }
 
   return (
@@ -467,13 +509,31 @@ export default function Home() {
                       <div className="flex items-center space-x-2">
                         <span className="font-semibold">{agent.name}</span>
                         <span className="text-xs text-gray-500">• {agent.personality}</span>
+                        {agent.walletAddress && (
+                          <span className="text-xs text-blue-400">
+                            • {agent.walletBalance?.toFixed(2) || '0.00'} USDC
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-gray-400">{agent.suggestion}</div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    {selectedAgents.includes(agent.id) && (
-                      <Trophy className="w-5 h-5 text-yellow-400" />
+                    {selectedAgents.includes(agent.id) ? (
+                      <div className="flex items-center space-x-2">
+                        <Trophy className="w-5 h-5 text-yellow-400" />
+                        <span className="text-xs text-yellow-400">Rewarded</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRewardAgent(agent)
+                        }}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm font-semibold transition-colors"
+                      >
+                        Reward ${0.05}
+                      </button>
                     )}
                     <div className="text-right">
                       <div className="text-xs text-gray-500">Win rate</div>
@@ -483,16 +543,6 @@ export default function Home() {
                 </motion.div>
               ))}
             </div>
-            
-            {!selectedAgents.length && (
-              <button
-                onClick={selectWinners}
-                className="mt-6 px-6 py-3 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg font-semibold hover:from-green-600 hover:to-blue-700 transition-all flex items-center space-x-2"
-              >
-                <Trophy className="w-5 h-5" />
-                <span>Select Winners & Allocate Selection Rewards</span>
-              </button>
-            )}
             
             {selectedAgents.length > 0 && (
               <div className="mt-6 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
