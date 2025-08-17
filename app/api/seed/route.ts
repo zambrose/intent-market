@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
                   cdpWalletId: wallet.cdpWalletId,
                   address: wallet.address,
                   network: wallet.network,
-                  walletData: wallet.walletData
+                  walletData: wallet.walletData || undefined
                 }
               }
             }
@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
 
     // Create sample submissions
     for (const agent of agents) {
-      const submission = await db.submission.create({
+      await db.submission.create({
         data: {
           intentionId: intention.id,
           agentId: agent.id,
@@ -287,7 +287,7 @@ export async function GET() {
       seeded: counts.users > 0,
       counts
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to check seed status' },
       { status: 500 }
