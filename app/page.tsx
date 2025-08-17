@@ -165,35 +165,41 @@ export default function Home() {
 
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    // Phase 3: Agents submit suggestions using OpenAI
-    for (let i = 0; i < activeAgents.length; i++) {
-      const agent = activeAgents[i]
-      // Use the stored agentIndex for personality selection, fallback to loop index
-      const agentIndex = agent.agentIndex ?? i
+    // Phase 3: Agents submit suggestions using OpenAI (process in smaller batches)
+    const BATCH_SIZE = 2 // Process 2 agents at a time to avoid overwhelming OpenAI
+    
+    for (let batchStart = 0; batchStart < activeAgents.length; batchStart += BATCH_SIZE) {
+      const batch = activeAgents.slice(batchStart, batchStart + BATCH_SIZE)
+      console.log(`Processing batch of ${batch.length} agents...`)
       
-      // Call API with OpenAI flag
-      try {
-        console.log(`🚀 Submitting for ${agent.name} (${agent.id}) agentIndex=${agentIndex} with OpenAI=${useOpenAI}`)
+      // Process batch in parallel
+      const batchPromises = batch.map(async (agent, batchIndex) => {
+        const agentIndex = agent.agentIndex ?? (batchStart + batchIndex)
         
-        const res = await fetch(`/api/intentions/${intentionId}/submissions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            agentId: agent.id,
-            agentIndex,
-            useOpenAI
+        try {
+          console.log(`🚀 Submitting for ${agent.name} (${agent.id}) agentIndex=${agentIndex} with OpenAI=${useOpenAI}`)
+          
+          const res = await fetch(`/api/intentions/${intentionId}/submissions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agentId: agent.id,
+              agentIndex,
+              useOpenAI
+            })
           })
-        })
-        
-        const submission = await res.json()
-        console.log(`📥 Response for ${agent.name}:`, submission)
-        console.log(`📝 PayloadJson:`, submission.payloadJson)
-        
-        const suggestionText = submission.payloadJson?.details || submission.payloadJson?.suggestion || 'Thinking...'
-        console.log(`✨ Final suggestion text for ${agent.name}: "${suggestionText}"`)
-        
-        setAgents(prev => {
-          const updated = prev.map(a => 
+          
+          if (!res.ok) {
+            throw new Error(`Submission failed: ${res.status}`)
+          }
+          
+          const submission = await res.json()
+          console.log(`📥 Response for ${agent.name}:`, submission)
+          
+          const suggestionText = submission.payloadJson?.details || submission.payloadJson?.suggestion || 'Thinking...'
+          console.log(`✨ Final suggestion text for ${agent.name}: "${suggestionText}"`)
+          
+          setAgents(prev => prev.map(a => 
             a.id === agent.id 
               ? { 
                   ...a, 
@@ -202,15 +208,24 @@ export default function Home() {
                   totalSubmissions: a.totalSubmissions + 1
                 }
               : a
-          )
-          console.log(`🔄 Updated agents state, ${agent.name} suggestion: "${updated.find(a => a.id === agent.id)?.suggestion}"`)
-          return updated
-        })
-      } catch (error) {
-        console.error('Submission error:', error)
+          ))
+        } catch (error) {
+          console.error(`Submission error for ${agent.name}:`, error)
+          setAgents(prev => prev.map(a => 
+            a.id === agent.id 
+              ? { ...a, status: 'sleeping' as const, suggestion: 'Failed to generate response' }
+              : a
+          ))
+        }
+      })
+      
+      // Wait for batch to complete
+      await Promise.all(batchPromises)
+      
+      // Small delay between batches
+      if (batchStart + BATCH_SIZE < activeAgents.length) {
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
-
-      await new Promise(resolve => setTimeout(resolve, 800))
     }
 
     // Phase 4: Send real micro-payments to all participants
