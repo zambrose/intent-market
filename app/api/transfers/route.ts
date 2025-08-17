@@ -29,9 +29,18 @@ export async function POST(req: NextRequest) {
       })
     ])
     
-    if (!fromWallet || !toWallet) {
+    if (!fromWallet) {
+      console.error(`❌ No wallet found for sender user: ${data.fromUserId}`)
       return NextResponse.json(
-        { error: 'Wallet not found for one or both users' },
+        { error: `Wallet not found for sender user: ${data.fromUserId}` },
+        { status: 404 }
+      )
+    }
+    
+    if (!toWallet) {
+      console.error(`❌ No wallet found for recipient user: ${data.toUserId}`)
+      return NextResponse.json(
+        { error: `Wallet not found for recipient user: ${data.toUserId}` },
         { status: 404 }
       )
     }

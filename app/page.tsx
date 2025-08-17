@@ -230,10 +230,12 @@ export default function Home() {
 
     // Phase 4: Send real micro-payments to all participants
     const participatingAgents = agents.filter(a => a.stakedAmount >= 10 && a.suggestion)
+    console.log(`💸 Sending participation rewards to ${participatingAgents.length} agents...`)
     
     for (const agent of participatingAgents) {
       if (demoUserId) {
         try {
+          console.log(`💰 Sending ${microPaymentAmount} USDC to ${agent.name} (${agent.id})...`)
           const res = await fetch('/api/transfers', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -246,11 +248,19 @@ export default function Home() {
             })
           })
           
+          if (!res.ok) {
+            const errorText = await res.text()
+            console.error(`❌ Transfer failed for ${agent.name}: ${res.status} - ${errorText}`)
+            continue
+          }
+          
           const result = await res.json()
-          console.log(`💰 Participation reward sent to ${agent.name}:`, result)
+          console.log(`✅ Participation reward sent to ${agent.name}:`, result)
         } catch (error) {
-          console.error(`Failed to send participation reward to ${agent.name}:`, error)
+          console.error(`❌ Failed to send participation reward to ${agent.name}:`, error)
         }
+      } else {
+        console.warn('⚠️ No demo user ID available for participation rewards')
       }
     }
     
