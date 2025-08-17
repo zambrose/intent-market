@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getAgentPersonality } from './lib/openai'
 import AgentModal from './components/AgentModal'
-import DemoWallet from './components/DemoWallet'
+import WalletDisplay from './components/WalletDisplay'
 import WalletWarning from './components/WalletWarning'
+import { useDemoUser } from './hooks/useDemoUser'
 import { DollarSign, Trophy, Zap, Brain, History } from 'lucide-react'
 import Link from 'next/link'
 
@@ -48,6 +49,7 @@ export default function Home() {
   const [showAgentModal, setShowAgentModal] = useState(false)
   const [useOpenAI, setUseOpenAI] = useState(true)
   const [microPaymentAmount] = useState(0.002) // $0.002 for participation
+  const { demoUserId } = useDemoUser()
 
   // Initialize agents with personalities and fetch wallet data
   useEffect(() => {
@@ -294,7 +296,7 @@ export default function Home() {
             Intent Market
           </h1>
           <div className="flex items-center space-x-4">
-            <DemoWallet />
+            <WalletDisplay userId={demoUserId || undefined} />
             <Link
               href="/history"
               className="flex items-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
