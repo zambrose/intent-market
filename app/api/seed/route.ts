@@ -7,6 +7,7 @@ export async function POST(req: NextRequest) {
     // Check for a secret to protect this endpoint
     const { searchParams } = new URL(req.url)
     const secret = searchParams.get('secret')
+    const force = searchParams.get('force') === 'true'
     
     if (secret !== process.env.SEED_SECRET) {
       return NextResponse.json(
@@ -15,13 +16,40 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check if already seeded
+    // Check if already seeded (look for agents specifically)
+    const existingAgents = await db.agentProfile.count()
     const existingUsers = await db.user.count()
-    if (existingUsers > 0) {
-      return NextResponse.json({
-        message: 'Database already seeded',
-        userCount: existingUsers
-      })
+    
+    // If force flag is set, clean everything
+    if (force) {
+      console.log('Force flag set, cleaning all data...')
+      // Delete in correct order to respect foreign keys
+      await db.submission.deleteMany({})
+      await db.intention.deleteMany({})
+      await db.agentProfile.deleteMany({})
+      await db.wallet.deleteMany({})
+      await db.user.deleteMany({})
+      console.log('All data cleaned')
+    } else {
+      // If we have agents already, don't reseed
+      if (existingAgents > 0) {
+        return NextResponse.json({
+          message: 'Database already seeded. Use ?force=true to reseed.',
+          userCount: existingUsers,
+          agentCount: existingAgents
+        })
+      }
+      
+      // If we have users but no agents, we need to clean up and reseed
+      if (existingUsers > 0 && existingAgents === 0) {
+        console.log('Found users but no agents, cleaning up partial data...')
+        // Delete in correct order to respect foreign keys
+        await db.submission.deleteMany({})
+        await db.intention.deleteMany({})
+        await db.wallet.deleteMany({})
+        await db.user.deleteMany({})
+        console.log('Cleaned up partial data')
+      }
     }
 
     console.log('Starting database seed...')
