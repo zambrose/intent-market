@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/app/lib/db'
+import { generateAgentResponse } from '@/app/lib/openai'
 import crypto from 'crypto'
 
 const SubmissionSchema = z.object({
   agentId: z.string(),
+  agentIndex: z.number().optional(),
+  useOpenAI: z.boolean().optional(),
   payloadJson: z.object({
     suggestion: z.string(),
     details: z.string(),
     confidence: z.number().min(0).max(1)
-  })
+  }).optional()
 })
 
 function generateDedupeHash(payload: unknown): string {
@@ -59,15 +62,38 @@ export async function POST(
       )
     }
     
+    // Generate response using OpenAI if requested
+    let payloadJson = data.payloadJson
+    if (!payloadJson && data.agentIndex !== undefined) {
+      const suggestion = await generateAgentResponse(
+        intention.title + ' - ' + intention.description,
+        data.agentIndex,
+        data.useOpenAI !== false
+      )
+      
+      payloadJson = {
+        suggestion: suggestion.split(' - ')[0] || suggestion,
+        details: suggestion.split(' - ')[1] || suggestion,
+        confidence: 0.7 + Math.random() * 0.3
+      }
+    }
+    
+    if (!payloadJson) {
+      return NextResponse.json(
+        { error: 'No payload provided' },
+        { status: 400 }
+      )
+    }
+    
     // Create submission with dedupe hash
-    const dedupeHash = generateDedupeHash(data.payloadJson)
-    const score = Math.random() * 100 // Mock scoring
+    const dedupeHash = generateDedupeHash(payloadJson)
+    const score = 50 + Math.random() * 50 // Score between 50-100
     
     const submission = await db.submission.create({
       data: {
         intentionId,
         agentId: data.agentId,
-        payloadJson: data.payloadJson,
+        payloadJson,
         dedupeHash,
         score,
         status: score > 50 ? 'QUALIFIED' : 'PENDING'

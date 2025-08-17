@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getAgentPersonality } from './lib/openai'
+import AgentModal from './components/AgentModal'
+import { DollarSign, Trophy, Zap, Brain } from 'lucide-react'
 
 interface Agent {
   id: string
@@ -12,6 +15,11 @@ interface Agent {
   status: 'sleeping' | 'awakening' | 'thinking' | 'submitting' | 'rewarded'
   suggestion?: string
   reward?: number
+  stakedAmount: number
+  totalEarnings: number
+  winRate: number
+  totalSubmissions: number
+  personality: string
 }
 
 interface Intention {
@@ -32,18 +40,30 @@ export default function Home() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgents, setSelectedAgents] = useState<string[]>([])
   const [isSimulating, setIsSimulating] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [showAgentModal, setShowAgentModal] = useState(false)
+  const [useOpenAI, setUseOpenAI] = useState(false)
+  const [microPaymentAmount] = useState(2) // $2 for participation
 
-  // Initialize agents
+  // Initialize agents with personalities and stats
   useEffect(() => {
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#FFB6C1']
-    const initialAgents = Array.from({ length: 8 }, (_, i) => ({
-      id: `agent-${i}`,
-      name: `Agent ${i + 1}`,
-      color: colors[i],
-      x: Math.random() * 80 + 10,
-      y: Math.random() * 60 + 20,
-      status: 'sleeping' as const
-    }))
+    const initialAgents = Array.from({ length: 8 }, (_, i) => {
+      const personality = getAgentPersonality(i)
+      return {
+        id: `agent-${i}`,
+        name: personality.name,
+        color: colors[i],
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 60 + 20,
+        status: 'sleeping' as const,
+        stakedAmount: 10 + Math.random() * 40, // $10-50 staked
+        totalEarnings: Math.random() * 500,
+        winRate: Math.random() * 0.4 + 0.1,
+        totalSubmissions: Math.floor(Math.random() * 100),
+        personality: personality.style
+      }
+    })
     setAgents(initialAgents)
   }, [])
 
@@ -61,16 +81,16 @@ export default function Home() {
           category: 'recommendations',
           budgetUsd: 50,
           winnersCount: 3,
-          participationUsd: 5,
-          selectionUsd: 10,
-          windowHours: 0.1 // 6 minutes for demo
+          participationUsd: microPaymentAmount,
+          selectionUsd: 15,
+          windowHours: 0.1
         })
       })
 
       const intention = await res.json()
       setActiveIntention(intention)
       
-      // Start agent simulation
+      // Start agent simulation with OpenAI
       simulateAgentActivity(intention.id)
     } catch (error) {
       console.error('Failed to create intention:', error)
@@ -80,114 +100,166 @@ export default function Home() {
   const simulateAgentActivity = async (intentionId: string) => {
     setIsSimulating(true)
 
-    // Phase 1: Agents awaken
+    // Phase 1: Agents awaken (staking check)
     setAgents(prev => prev.map(agent => ({
       ...agent,
-      status: 'awakening'
+      status: agent.stakedAmount >= 10 ? 'awakening' : 'sleeping'
     })))
 
     await new Promise(resolve => setTimeout(resolve, 1500))
 
     // Phase 2: Agents think
+    const activeAgents = agents.filter(a => a.stakedAmount >= 10)
     setAgents(prev => prev.map(agent => ({
       ...agent,
-      status: 'thinking'
+      status: agent.stakedAmount >= 10 ? 'thinking' : 'sleeping'
     })))
 
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    // Phase 3: Agents submit suggestions
-    const suggestions = [
-      'Freemans on Chrystie Street - Amazing cocktails and small plates',
-      'Beauty & Essex hidden behind a pawn shop - Great for groups',
-      'The Smith near Washington Square - Classic American fare',
-      'Contra - Michelin-starred tasting menu at reasonable prices',
-      'Dirty French - Upscale bistro with great ambiance',
-      'Katz\'s Delicatessen - Iconic pastrami sandwiches',
-      'Russ & Daughters - Best bagels and lox in the city',
-      'Clinton St. Baking - Famous brunch spot'
-    ]
-
-    for (let i = 0; i < agents.length; i++) {
-      const agent = agents[i]
+    // Phase 3: Agents submit suggestions using OpenAI
+    for (let i = 0; i < activeAgents.length; i++) {
+      const agent = activeAgents[i]
+      const agentIndex = parseInt(agent.id.split('-')[1])
       
-      setAgents(prev => prev.map(a => 
-        a.id === agent.id 
-          ? { ...a, status: 'submitting', suggestion: suggestions[i] }
-          : a
-      ))
-
-      // Submit to API
+      // Call API with OpenAI flag
       try {
-        await fetch(`/api/intentions/${intentionId}/submissions`, {
+        const res = await fetch(`/api/intentions/${intentionId}/submissions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: agent.id,
-            payloadJson: {
-              suggestion: suggestions[i],
-              details: `Details for ${suggestions[i]}`,
-              confidence: Math.random() * 0.5 + 0.5
-            }
+            agentIndex,
+            useOpenAI
           })
         })
+        
+        const submission = await res.json()
+        
+        setAgents(prev => prev.map(a => 
+          a.id === agent.id 
+            ? { 
+                ...a, 
+                status: 'submitting', 
+                suggestion: submission.payloadJson?.suggestion || 'Thinking...',
+                totalSubmissions: a.totalSubmissions + 1
+              }
+            : a
+        ))
       } catch (error) {
         console.error('Submission error:', error)
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 800))
     }
 
-    // Phase 4: Show all as submitted
+    // Phase 4: Give micro-payments to all participants
+    setAgents(prev => prev.map(agent => {
+      if (agent.stakedAmount >= 10) {
+        return {
+          ...agent,
+          totalEarnings: agent.totalEarnings + microPaymentAmount,
+          reward: microPaymentAmount
+        }
+      }
+      return agent
+    }))
+
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Reset status
     setAgents(prev => prev.map(agent => ({
       ...agent,
-      status: 'sleeping'
+      status: 'sleeping',
+      reward: undefined
     })))
 
     setIsSimulating(false)
   }
 
-  const selectWinners = () => {
-    if (!agents.length) return
+  const selectWinners = async () => {
+    if (!agents.length || !activeIntention) return
 
-    // Randomly select 3 winners
+    // Select top 3 based on some criteria
     const winners = agents
+      .filter(a => a.suggestion)
       .sort(() => Math.random() - 0.5)
       .slice(0, 3)
       .map(a => a.id)
 
     setSelectedAgents(winners)
 
-    // Update agent status to show rewards
+    // Update agent status and earnings
     setAgents(prev => prev.map(agent => {
       if (winners.includes(agent.id)) {
         const isTopWinner = winners[0] === agent.id
+        const winReward = isTopWinner ? 20 : 15
         return {
           ...agent,
           status: 'rewarded',
-          reward: isTopWinner ? 10 : 5
+          reward: winReward,
+          totalEarnings: agent.totalEarnings + winReward,
+          winRate: (agent.winRate * agent.totalSubmissions + 1) / (agent.totalSubmissions + 1)
         }
       }
       return agent
     }))
 
-    // Trigger reward allocation
-    if (activeIntention) {
-      allocateRewards(activeIntention.id, winners)
-    }
+    // Store training data
+    await storeTrainingData(activeIntention.id, winners)
   }
 
-  const allocateRewards = async (intentionId: string, winnerIds: string[]) => {
-    console.log('Allocating rewards to:', winnerIds)
-    // In production, this would call the allocation API
+  const storeTrainingData = async (intentionId: string, winnerIds: string[]) => {
+    // In production, this would call an API to store training data
+    const allSubmissions = agents.filter(a => a.suggestion).map(a => ({
+      agentId: a.id,
+      suggestion: a.suggestion,
+      personality: a.personality
+    }))
+    
+    const trainingData = {
+      intentionId,
+      userId: 'demo-user',
+      prompt: userInput,
+      allSubmissions,
+      selectedIds: winnerIds,
+      rejectedIds: agents.filter(a => a.suggestion && !winnerIds.includes(a.id)).map(a => a.id)
+    }
+    
+    console.log('Training data stored:', trainingData)
+  }
+
+  const handleAgentClick = (agent: Agent) => {
+    const agentWithWins = {
+      ...agent,
+      recentWins: ['Date night in LES', 'Best brunch spots', 'Hidden bars'].slice(0, Math.floor(Math.random() * 3) + 1)
+    }
+    setSelectedAgent(agentWithWins as Agent)
+    setShowAgentModal(true)
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white">
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-center mb-8 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
-          Intent Market
-        </h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+            Intent Market
+          </h1>
+          <div className="flex items-center space-x-4">
+            <label className="flex items-center space-x-2 text-sm">
+              <input
+                type="checkbox"
+                checked={useOpenAI}
+                onChange={(e) => setUseOpenAI(e.target.checked)}
+                className="rounded"
+              />
+              <span>Use OpenAI</span>
+            </label>
+            <div className="text-sm text-gray-400">
+              <span className="text-green-400">⚡</span> Micro-payment: ${microPaymentAmount}/submission
+            </div>
+          </div>
+        </div>
 
         {/* Input Section */}
         <div className="max-w-2xl mx-auto mb-12">
@@ -201,13 +273,18 @@ export default function Home() {
               className="w-full px-4 py-3 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
               onKeyPress={(e) => e.key === 'Enter' && createIntention()}
             />
-            <button
-              onClick={createIntention}
-              disabled={isSimulating || !userInput.trim()}
-              className="mt-4 w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg font-semibold hover:from-blue-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSimulating ? 'Agents Working...' : 'Broadcast Intent'}
-            </button>
+            <div className="mt-4 flex items-center justify-between">
+              <button
+                onClick={createIntention}
+                disabled={isSimulating || !userInput.trim()}
+                className="flex-1 mr-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg font-semibold hover:from-blue-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSimulating ? 'Agents Working...' : 'Broadcast Intent'}
+              </button>
+              <div className="text-sm text-gray-400">
+                <DollarSign className="inline w-4 h-4" /> Budget: $50
+              </div>
+            </div>
           </div>
         </div>
 
@@ -215,11 +292,17 @@ export default function Home() {
         <div className="relative h-96 bg-gray-800 rounded-lg overflow-hidden mb-8">
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-gray-900 opacity-50"></div>
           
+          {/* Staking indicator */}
+          <div className="absolute top-4 left-4 text-xs text-gray-400 z-10">
+            <Brain className="inline w-4 h-4 mr-1" />
+            Agents must stake ≥$10 to participate
+          </div>
+          
           <AnimatePresence>
             {agents.map((agent) => (
               <motion.div
                 key={agent.id}
-                className="absolute"
+                className="absolute cursor-pointer"
                 style={{ left: `${agent.x}%`, top: `${agent.y}%` }}
                 initial={{ scale: 0 }}
                 animate={{ 
@@ -229,17 +312,24 @@ export default function Home() {
                          agent.status === 'rewarded' ? 1.5 : 1
                 }}
                 transition={{ duration: 0.5 }}
+                onClick={() => handleAgentClick(agent)}
               >
                 <div className="relative">
                   <div
                     className={`w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${
+                      agent.stakedAmount < 10 ? 'opacity-30 cursor-not-allowed' :
                       agent.status === 'sleeping' ? 'opacity-50' :
                       agent.status === 'rewarded' ? 'ring-4 ring-yellow-400 shadow-2xl' : 
                       'shadow-lg'
                     }`}
                     style={{ backgroundColor: agent.color }}
                   >
-                    {agent.name.split(' ')[1]}
+                    {agent.name.charAt(0)}
+                  </div>
+                  
+                  {/* Staked amount badge */}
+                  <div className="absolute -bottom-1 -right-1 bg-green-600 text-white text-[10px] px-1 rounded">
+                    ${Math.round(agent.stakedAmount)}
                   </div>
                   
                   {agent.status === 'thinking' && (
@@ -262,7 +352,7 @@ export default function Home() {
                     </motion.div>
                   )}
                   
-                  {agent.status === 'rewarded' && (
+                  {agent.reward && (
                     <motion.div
                       className="absolute -top-4 left-1/2 transform -translate-x-1/2"
                       initial={{ y: 0, opacity: 1 }}
@@ -287,32 +377,51 @@ export default function Home() {
         {/* Submissions List */}
         {activeIntention && agents.some(a => a.suggestion) && (
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-4">Agent Submissions</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Agent Submissions</h2>
+              <div className="text-sm text-gray-400">
+                <Zap className="inline w-4 h-4 text-yellow-400" />
+                {agents.filter(a => a.suggestion).length} agents earned ${microPaymentAmount} each
+              </div>
+            </div>
             <div className="space-y-3">
               {agents.filter(a => a.suggestion).map((agent) => (
                 <motion.div
                   key={agent.id}
                   initial={{ x: -50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  className={`bg-gray-800 rounded-lg p-4 flex items-center justify-between ${
+                  className={`bg-gray-800 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:bg-gray-750 transition-colors ${
                     selectedAgents.includes(agent.id) ? 'ring-2 ring-yellow-400' : ''
                   }`}
+                  onClick={() => handleAgentClick(agent)}
                 >
                   <div className="flex items-center space-x-4">
-                    <div
-                      className="w-10 h-10 rounded-full"
-                      style={{ backgroundColor: agent.color }}
-                    ></div>
-                    <div>
-                      <div className="font-semibold">{agent.name}</div>
+                    <div className="relative">
+                      <div
+                        className="w-10 h-10 rounded-full"
+                        style={{ backgroundColor: agent.color }}
+                      />
+                      <div className="absolute -bottom-1 -right-1 bg-green-600 text-white text-[8px] px-1 rounded">
+                        ${Math.round(agent.stakedAmount)}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold">{agent.name}</span>
+                        <span className="text-xs text-gray-500">• {agent.personality}</span>
+                      </div>
                       <div className="text-sm text-gray-400">{agent.suggestion}</div>
                     </div>
                   </div>
-                  {agent.reward && (
-                    <div className="text-yellow-400 font-bold">
-                      ${agent.reward} earned
+                  <div className="flex items-center space-x-3">
+                    {selectedAgents.includes(agent.id) && (
+                      <Trophy className="w-5 h-5 text-yellow-400" />
+                    )}
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">Win rate</div>
+                      <div className="text-sm font-semibold">{(agent.winRate * 100).toFixed(0)}%</div>
                     </div>
-                  )}
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -320,14 +429,33 @@ export default function Home() {
             {!selectedAgents.length && (
               <button
                 onClick={selectWinners}
-                className="mt-6 px-6 py-3 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg font-semibold hover:from-green-600 hover:to-blue-700 transition-all"
+                className="mt-6 px-6 py-3 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg font-semibold hover:from-green-600 hover:to-blue-700 transition-all flex items-center space-x-2"
               >
-                Select Winners & Allocate Rewards
+                <Trophy className="w-5 h-5" />
+                <span>Select Winners & Allocate Selection Rewards</span>
               </button>
+            )}
+            
+            {selectedAgents.length > 0 && (
+              <div className="mt-6 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+                <p className="text-sm text-green-400">
+                  ✅ Training data saved! User preferences recorded for personalizing future recommendations.
+                </p>
+              </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Agent Detail Modal */}
+      <AgentModal
+        agent={selectedAgent ? {
+          ...selectedAgent,
+          recentWins: ['Date night in LES', 'Best brunch spots', 'Hidden bars'].slice(0, Math.floor(Math.random() * 3) + 1)
+        } : null}
+        isOpen={showAgentModal}
+        onClose={() => setShowAgentModal(false)}
+      />
     </div>
   )
 }

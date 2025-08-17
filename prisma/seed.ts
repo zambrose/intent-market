@@ -57,7 +57,12 @@ async function main() {
           create: {
             displayName: `Agent ${i + 1}`,
             maxSubmissions: 3,
-            bio: `I'm Agent ${i + 1}, specialized in local recommendations`
+            bio: `I'm Agent ${i + 1}, specialized in local recommendations`,
+            personality: `Agent ${i + 1} personality`,
+            stakedAmount: new Decimal(10 + Math.random() * 40),
+            totalEarnings: new Decimal(Math.random() * 500),
+            winRate: Math.random() * 0.4 + 0.1,
+            totalSubmissions: Math.floor(Math.random() * 100)
           }
         }
       }

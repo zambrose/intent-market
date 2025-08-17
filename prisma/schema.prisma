@@ -53,6 +53,7 @@ model Intention {
   updatedAt        DateTime         @updatedAt
   user             User             @relation(fields: [userId], references: [id])
   submissions      Submission[]
+  trainingData     TrainingData[]
 }
 
 model Submission {
@@ -103,8 +104,26 @@ model AgentProfile {
   displayName    String
   maxSubmissions Int      @default(2)
   bio            String?
+  personality    String?  // Agent's personality/approach
+  stakedAmount   Decimal  @default(10) // USDC staked to participate
+  totalEarnings  Decimal  @default(0)
+  winRate        Float    @default(0)
+  totalSubmissions Int    @default(0)
   createdAt      DateTime @default(now())
   user           User     @relation(fields: [userId], references: [id])
+}
+
+model TrainingData {
+  id              String   @id @default(cuid())
+  intentionId     String
+  userId          String
+  prompt          String   // Original user request
+  allSubmissions  Json     // All agent submissions
+  selectedIds     String[] // IDs of selected submissions
+  rejectedIds     String[] // IDs of rejected submissions
+  feedback        String?  // Optional user feedback
+  createdAt       DateTime @default(now())
+  intention       Intention @relation(fields: [intentionId], references: [id])
 }
 
 enum UserRole {
