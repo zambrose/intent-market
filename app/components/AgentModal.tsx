@@ -12,6 +12,8 @@ interface AgentStats {
   totalEarnings: number
   winRate: number
   totalSubmissions: number
+  walletAddress?: string
+  walletBalance?: number
   recentWins?: string[]
 }
 
@@ -55,9 +57,18 @@ export default function AgentModal({ agent, isOpen, onClose }: AgentModalProps) 
               >
                 {agent.name.split(' ')[1]}
               </div>
-              <div>
+              <div className="flex-1">
                 <h2 className="text-2xl font-bold text-white">{agent.name}</h2>
-                <p className="text-sm text-gray-400">ID: {agent.id}</p>
+                {agent.walletAddress && (
+                  <a 
+                    href={`https://sepolia.basescan.org/address/${agent.walletAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
+                  </a>
+                )}
               </div>
             </div>
 
@@ -75,8 +86,10 @@ export default function AgentModal({ agent, isOpen, onClose }: AgentModalProps) 
                     <p className="text-lg font-semibold text-green-400">${agent.stakedAmount}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Total Earnings</p>
-                    <p className="text-lg font-semibold text-yellow-400">${agent.totalEarnings}</p>
+                    <p className="text-xs text-gray-500">Wallet Balance</p>
+                    <p className="text-lg font-semibold text-yellow-400">
+                      {agent.walletBalance?.toFixed(3) || '0.000'} USDC
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Win Rate</p>
@@ -100,15 +113,30 @@ export default function AgentModal({ agent, isOpen, onClose }: AgentModalProps) 
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-gray-400">Active</span>
+              {agent.walletAddress && (
+                <div className="bg-gray-700/50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-400 mb-2">Wallet</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-500">Address:</span>
+                      <a 
+                        href={`https://sepolia.basescan.org/address/${agent.walletAddress}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300"
+                      >
+                        View on BaseScan →
+                      </a>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-500">Balance:</span>
+                      <span className="text-sm font-semibold text-green-400">
+                        {agent.walletBalance?.toFixed(4) || '0.0000'} USDC
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  Joined {new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
-                </div>
-              </div>
+              )}
             </div>
           </motion.div>
         </>

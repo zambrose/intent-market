@@ -135,7 +135,7 @@ export default function WalletDisplay({ userId }: { userId?: string }) {
         <DollarSign className="w-4 h-4 text-green-400" />
         <div className="text-sm">
           <div className="text-gray-400 text-xs">USDC Balance</div>
-          <div className="font-semibold">{wallet.balance.toFixed(2)}</div>
+          <div className="font-semibold">{wallet.balance.toFixed(4)}</div>
         </div>
       </div>
       

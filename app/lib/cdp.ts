@@ -192,12 +192,16 @@ export const cdp = {
       await initializeCDP()
     }
     
+    console.log('Transfer request:', { cdpAvailable, hasWalletData: !!fromWalletData, hasCoincaseClass: !!Coinbase })
+    
     if (cdpAvailable && fromWalletData && Coinbase) {
       try {
+        console.log('Importing wallet with data keys:', Object.keys(fromWalletData))
         const wallet = await cdp.importWallet(fromWalletData)
         
         if (wallet) {
           console.log(`💸 Initiating transfer of ${amountUsd} USDC to ${toAddress}`)
+          console.log('Wallet imported successfully, ID:', wallet.getId())
           
           // Create and broadcast the transfer
           // Use gasless option for USDC to avoid needing ETH for gas
@@ -208,11 +212,22 @@ export const cdp = {
             gasless: true
           })
           
-          // Wait for the transfer to complete
-          await transfer.wait()
+          // Don't wait for completion, just get the tx hash
+          const txHash = transfer.getTransactionHash() || 'pending'
+          console.log(`📤 Transfer broadcast: ${txHash}`)
           
-          const txHash = transfer.getTransactionHash() || 'completed'
-          console.log(`✅ Transfer complete: ${txHash}`)
+          // Optionally wait with timeout
+          try {
+            await Promise.race([
+              transfer.wait(),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Transfer confirmation timeout')), 10000)
+              )
+            ])
+            console.log(`✅ Transfer confirmed: ${txHash}`)
+          } catch (waitError) {
+            console.log(`⏱️ Transfer broadcast but confirmation pending: ${txHash}`)
+          }
           
           return {
             txHash,

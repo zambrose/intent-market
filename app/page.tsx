@@ -324,6 +324,11 @@ export default function Home() {
       
       // Store training data
       await storeTrainingData(activeIntention.id, [agent.id])
+      
+      // Refresh wallet balance after transfer
+      setTimeout(() => {
+        window.location.reload()
+      }, 3000)
     } catch (error) {
       console.error('Failed to reward agent:', error)
     }
