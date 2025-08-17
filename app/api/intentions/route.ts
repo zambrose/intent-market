@@ -20,9 +20,26 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = CreateIntentionSchema.parse(body)
     
+    // Ensure user exists or create
+    const user = await db.user.upsert({
+      where: { email: 'demo@intent.market' },
+      update: {},
+      create: {
+        email: 'demo@intent.market',
+        role: 'REQUESTER',
+        wallet: {
+          create: {
+            cdpWalletId: 'cdp_wallet_demo',
+            address: '0x1234567890123456789012345678901234567890',
+            network: 'base-sepolia'
+          }
+        }
+      }
+    })
+    
     const intention = await db.intention.create({
       data: {
-        userId: data.userId,
+        userId: user.id,
         title: data.title,
         description: data.description,
         category: data.category,

@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getAgentPersonality } from './lib/openai'
 import AgentModal from './components/AgentModal'
-import { DollarSign, Trophy, Zap, Brain } from 'lucide-react'
+import { DollarSign, Trophy, Zap, Brain, History } from 'lucide-react'
+import Link from 'next/link'
 
 interface Agent {
   id: string
@@ -43,7 +44,7 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentModal, setShowAgentModal] = useState(false)
   const [useOpenAI, setUseOpenAI] = useState(false)
-  const [microPaymentAmount] = useState(2) // $2 for participation
+  const [microPaymentAmount] = useState(0.02) // $0.02 for participation
 
   // Initialize agents with personalities and stats
   useEffect(() => {
@@ -79,10 +80,10 @@ export default function Home() {
           title: userInput,
           description: `Looking for recommendations: ${userInput}`,
           category: 'recommendations',
-          budgetUsd: 50,
+          budgetUsd: 5,
           winnersCount: 3,
           participationUsd: microPaymentAmount,
-          selectionUsd: 15,
+          selectionUsd: 0.50,
           windowHours: 0.1
         })
       })
@@ -193,7 +194,7 @@ export default function Home() {
     setAgents(prev => prev.map(agent => {
       if (winners.includes(agent.id)) {
         const isTopWinner = winners[0] === agent.id
-        const winReward = isTopWinner ? 20 : 15
+        const winReward = isTopWinner ? 0.75 : 0.50
         return {
           ...agent,
           status: 'rewarded',
@@ -246,6 +247,13 @@ export default function Home() {
             Intent Market
           </h1>
           <div className="flex items-center space-x-4">
+            <Link
+              href="/history"
+              className="flex items-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <History className="w-4 h-4" />
+              <span className="text-sm">History</span>
+            </Link>
             <label className="flex items-center space-x-2 text-sm">
               <input
                 type="checkbox"
@@ -282,7 +290,7 @@ export default function Home() {
                 {isSimulating ? 'Agents Working...' : 'Broadcast Intent'}
               </button>
               <div className="text-sm text-gray-400">
-                <DollarSign className="inline w-4 h-4" /> Budget: $50
+                <DollarSign className="inline w-4 h-4" /> Budget: $5
               </div>
             </div>
           </div>

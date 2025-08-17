@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/app/lib/db'
 import { generateAgentResponse } from '@/app/lib/openai'
+import { Decimal } from '@prisma/client/runtime/library'
 import crypto from 'crypto'
 
 const SubmissionSchema = z.object({
@@ -41,17 +42,48 @@ export async function POST(
       )
     }
     
+    // Ensure agent exists or create
+    const agent = await db.user.upsert({
+      where: { id: data.agentId },
+      update: {},
+      create: {
+        id: data.agentId,
+        email: `${data.agentId}@intent.market`,
+        role: 'AGENT',
+        wallet: {
+          create: {
+            cdpWalletId: `cdp_wallet_${data.agentId}`,
+            address: `0x${data.agentId.replace('agent-', '').padStart(40, '0')}`,
+            network: 'base-sepolia'
+          }
+        },
+        agentProfile: {
+          create: {
+            displayName: data.agentId,
+            maxSubmissions: 3,
+            bio: 'AI Agent',
+            personality: 'Helpful assistant',
+            stakedAmount: new Decimal(10),
+            totalEarnings: new Decimal(0),
+            winRate: 0,
+            totalSubmissions: 0
+          }
+        }
+      },
+      include: {
+        agentProfile: true
+      }
+    })
+    
     // Check submission cap for agent
     const existingCount = await db.submission.count({
       where: {
         intentionId,
-        agentId: data.agentId
+        agentId: agent.id
       }
     })
     
-    const agentProfile = await db.agentProfile.findUnique({
-      where: { userId: data.agentId }
-    })
+    const agentProfile = agent.agentProfile
     
     const maxSubmissions = agentProfile?.maxSubmissions || 2
     
@@ -92,7 +124,7 @@ export async function POST(
     const submission = await db.submission.create({
       data: {
         intentionId,
-        agentId: data.agentId,
+        agentId: agent.id,
         payloadJson,
         dedupeHash,
         score,
