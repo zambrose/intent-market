@@ -157,6 +157,7 @@ export default function Home() {
 
     // Phase 2: Agents think
     const activeAgents = agents.filter(a => a.stakedAmount >= 10)
+    console.log('Active agents:', activeAgents.map(a => ({ id: a.id, name: a.name, agentIndex: a.agentIndex })))
     setAgents(prev => prev.map(agent => ({
       ...agent,
       status: agent.stakedAmount >= 10 ? 'thinking' : 'sleeping'
@@ -167,12 +168,12 @@ export default function Home() {
     // Phase 3: Agents submit suggestions using OpenAI
     for (let i = 0; i < activeAgents.length; i++) {
       const agent = activeAgents[i]
-      // Use the stored agentIndex for personality selection
-      const agentIndex = agent.agentIndex
+      // Use the stored agentIndex for personality selection, fallback to loop index
+      const agentIndex = agent.agentIndex ?? i
       
       // Call API with OpenAI flag
       try {
-        console.log(`🚀 Submitting for ${agent.name} (${agent.id}) with OpenAI=${useOpenAI}`)
+        console.log(`🚀 Submitting for ${agent.name} (${agent.id}) agentIndex=${agentIndex} with OpenAI=${useOpenAI}`)
         
         const res = await fetch(`/api/intentions/${intentionId}/submissions`, {
           method: 'POST',

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { z, ZodError } from 'zod'
 import { db } from '@/app/lib/db'
 import { generateAgentResponse } from '@/app/lib/openai'
 import { Decimal } from '@prisma/client/runtime/library'
@@ -28,6 +28,7 @@ export async function POST(
   try {
     const { id: intentionId } = await params
     const body = await req.json()
+    console.log('Received submission body:', body)
     const data = SubmissionSchema.parse(body)
     
     // Check if intention is open
@@ -166,6 +167,9 @@ export async function POST(
     return NextResponse.json(submission)
   } catch (error) {
     console.error('Create submission error:', error)
+    if (error instanceof z.ZodError) {
+      console.error('Zod validation errors:', error.errors)
+    }
     return NextResponse.json(
       { error: 'Failed to create submission' },
       { status: 400 }
