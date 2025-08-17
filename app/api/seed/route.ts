@@ -54,22 +54,48 @@ export async function POST(req: NextRequest) {
 
     console.log('Starting database seed...')
 
-    // Create requester user
+    // Import CDP for wallet creation
+    const { cdp } = await import('@/app/lib/cdp')
+    
+    // Create requester user with wallet
+    const requesterWallet = await cdp.createWallet('demo-requester')
     const requester = await db.user.create({
       data: {
         email: 'demo@intent.market',
-        role: 'REQUESTER'
+        role: 'REQUESTER',
+        wallet: {
+          create: {
+            cdpWalletId: requesterWallet.cdpWalletId,
+            address: requesterWallet.address,
+            network: requesterWallet.network,
+            walletData: requesterWallet.walletData
+          }
+        }
+      },
+      include: {
+        wallet: true
       }
     })
-    console.log('Created requester:', requester.email)
-
-    // Create agent users
+    console.log(`Created requester: ${requester.email} with wallet: ${requester.wallet?.address}`)
+    
+    // Create agent users with wallets
     const agents = []
     for (let i = 1; i <= 8; i++) {
+      // Create CDP wallet for agent
+      const agentWallet = await cdp.createWallet(`agent${i}`)
+      
       const agent = await db.user.create({
         data: {
           email: `agent${i}@intent.market`,
           role: 'AGENT',
+          wallet: {
+            create: {
+              cdpWalletId: agentWallet.cdpWalletId,
+              address: agentWallet.address,
+              network: agentWallet.network,
+              walletData: agentWallet.walletData
+            }
+          },
           agentProfile: {
             create: {
               displayName: `Agent ${i}`,
@@ -84,11 +110,12 @@ export async function POST(req: NextRequest) {
           }
         },
         include: {
-          agentProfile: true
+          agentProfile: true,
+          wallet: true
         }
       })
       agents.push(agent)
-      console.log('Created agent:', agent.email)
+      console.log(`Created agent: ${agent.email} with wallet: ${agent.wallet?.address}`)
     }
 
     // Create sample intention
@@ -130,6 +157,7 @@ export async function POST(req: NextRequest) {
     const finalCounts = {
       users: await db.user.count(),
       agents: await db.agentProfile.count(),
+      wallets: await db.wallet.count(),
       intentions: await db.intention.count(),
       submissions: await db.submission.count()
     }
@@ -167,6 +195,7 @@ export async function GET() {
     const counts = {
       users: await db.user.count(),
       agents: await db.agentProfile.count(),
+      wallets: await db.wallet.count(),
       intentions: await db.intention.count(),
       submissions: await db.submission.count()
     }
