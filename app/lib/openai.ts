@@ -104,22 +104,24 @@ Keep your response to 1-2 sentences maximum.`
     console.log(`📤 Calling OpenAI with prompt:`, systemPrompt.substring(0, 200) + '...')
     console.time(`OpenAI-${personality.name}`)
     
-    // Add timeout using AbortController
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
-    
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Based on my request above, what's your best recommendation?` }
-      ],
-      max_tokens: 100,
-      temperature: 0.8 + (agentIndex * 0.05), // Vary temperature per agent for diversity
-      signal: controller.signal as any // Pass abort signal
+    // Create a promise that rejects after timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('OpenAI request timeout')), 10000)
     })
     
-    clearTimeout(timeoutId)
+    // Race between OpenAI request and timeout
+    const completion = await Promise.race([
+      openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Based on my request above, what's your best recommendation?` }
+        ],
+        max_tokens: 100,
+        temperature: 0.8 + (agentIndex * 0.05), // Vary temperature per agent for diversity
+      }),
+      timeoutPromise
+    ])
     
     const response = completion.choices[0]?.message?.content
     console.timeEnd(`OpenAI-${personality.name}`)
