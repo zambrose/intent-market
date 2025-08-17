@@ -19,7 +19,7 @@ export async function GET() {
       if (agent.wallet) {
         try {
           balance = await cdp.getBalance(agent.wallet.address)
-        } catch (e) {
+        } catch {
           console.warn(`Failed to get balance for ${agent.wallet.address}`)
         }
       }

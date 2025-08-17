@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z, ZodError } from 'zod'
+import { z } from 'zod'
 import { db } from '@/app/lib/db'
 import { generateAgentResponse } from '@/app/lib/openai'
 import { Decimal } from '@prisma/client/runtime/library'
@@ -168,7 +168,7 @@ export async function POST(
   } catch (error) {
     console.error('Create submission error:', error)
     if (error instanceof z.ZodError) {
-      console.error('Zod validation errors:', error.errors)
+      console.error('Zod validation errors:', error.issues)
     }
     return NextResponse.json(
       { error: 'Failed to create submission' },

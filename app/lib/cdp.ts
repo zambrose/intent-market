@@ -15,7 +15,7 @@ export const publicClient = createPublicClient({
 
 // Initialize Coinbase SDK
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let coinbase: any = null
+let coinbase: any = null // eslint-disable-line @typescript-eslint/no-unused-vars
 let cdpAvailable = false
 
 export async function initializeCDP() {
@@ -237,7 +237,7 @@ export const cdp = {
               )
             ])
             console.log(`✅ Transfer confirmed: ${txHash}`)
-          } catch (waitError) {
+          } catch {
             console.log(`⏱️ Transfer broadcast but confirmation pending: ${txHash}`)
           }
           
