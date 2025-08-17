@@ -85,7 +85,7 @@ export async function POST(
         }
       })
       
-      console.log(`Created agent ${data.agentId} with wallet: ${agent.wallet?.address}`)
+      console.log(`Created agent ${data.agentId} with wallet: ${cdpWallet.address}`)
     }
     
     // Check submission cap for agent

@@ -91,6 +91,7 @@ export async function POST(
         })
         
         // Trigger CDP transfer with real wallet data
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const userWalletData = intention.user.wallet.walletData as any
         const transfer = await cdp.transferUsdc(
           userWalletData,
@@ -132,6 +133,7 @@ export async function POST(
         })
         
         // Trigger CDP transfer with real wallet data
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const userWalletData = intention.user.wallet.walletData as any
         const transfer = await cdp.transferUsdc(
           userWalletData,

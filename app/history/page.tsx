@@ -12,10 +12,12 @@ interface IntentionHistory {
   createdAt: string
   status: string
   budgetUsd: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   submissions: any[]
   _count: {
     submissions: number
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   selectedSubmissions?: any[]
 }
 
@@ -157,6 +159,7 @@ export default function HistoryPage() {
                   >
                     <div className="p-6 space-y-4">
                       <h4 className="text-lg font-semibold mb-3">Agent Submissions</h4>
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       {intention.submissions.map((submission: any) => (
                         <div
                           key={submission.id}

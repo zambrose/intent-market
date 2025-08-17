@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getAgentPersonality } from './lib/openai'
 import AgentModal from './components/AgentModal'
 import WalletDisplay from './components/WalletDisplay'
-import { DollarSign, Trophy, Zap, Brain, History, Wallet } from 'lucide-react'
+import WalletWarning from './components/WalletWarning'
+import { DollarSign, Trophy, Zap, Brain, History } from 'lucide-react'
 import Link from 'next/link'
 
 interface Agent {
@@ -154,7 +155,7 @@ export default function Home() {
             a.id === agent.id 
               ? { 
                   ...a, 
-                  status: 'submitting', 
+                  status: 'submitting' as const, 
                   suggestion: suggestionText,
                   totalSubmissions: a.totalSubmissions + 1
                 }
@@ -253,6 +254,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white">
+      <WalletWarning />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">

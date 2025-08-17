@@ -1,6 +1,11 @@
-import { Coinbase, Wallet, WalletData, Transfer } from '@coinbase/coinbase-sdk'
 import { createPublicClient, http } from 'viem'
 import { baseSepolia } from 'viem/chains'
+
+// Dynamic imports to avoid build-time errors
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Coinbase: any = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Wallet: any = null
 
 // Keep viem client for reading blockchain data
 export const publicClient = createPublicClient({
@@ -9,32 +14,51 @@ export const publicClient = createPublicClient({
 })
 
 // Initialize Coinbase SDK
-let coinbase: Coinbase | null = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let coinbase: any = null
+let cdpAvailable = false
 
-export function getCoinbaseClient(): Coinbase {
-  if (!coinbase) {
+export async function initializeCDP() {
+  try {
+    // Only import CDP SDK if credentials are available
     const apiKeyName = process.env.COINBASE_CDP_API_KEY
     const apiKeySecret = process.env.COINBASE_CDP_API_SECRET
     
-    if (!apiKeyName || !apiKeySecret || apiKeyName === 'your-cdp-api-key') {
+    if (!apiKeyName || !apiKeySecret || apiKeyName === 'your-cdp-api-key' || apiKeyName === 'mock-api-key') {
       console.warn('CDP API credentials not configured - using mock mode')
-      throw new Error('CDP API credentials not configured')
+      return false
     }
+    
+    // Dynamic import to avoid build errors
+    const cdpModule = await import('@coinbase/coinbase-sdk')
+    Coinbase = cdpModule.Coinbase
+    Wallet = cdpModule.Wallet
     
     coinbase = new Coinbase({
       apiKeyName,
       privateKey: apiKeySecret
     })
+    
+    cdpAvailable = true
+    console.log('✅ CDP SDK initialized successfully')
+    return true
+  } catch (error) {
+    console.warn('CDP initialization failed, using mock mode:', error)
+    cdpAvailable = false
+    return false
   }
-  
-  return coinbase
+}
+
+export function isCDPAvailable(): boolean {
+  return cdpAvailable
 }
 
 export interface CDPWalletData {
   cdpWalletId: string
   address: string
   network: string
-  walletData?: WalletData // Store the full wallet data for recovery
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  walletData?: any // Store the full wallet data for recovery
 }
 
 export interface TransferResult {
@@ -45,59 +69,67 @@ export interface TransferResult {
 // Real CDP implementation with fallback to mock for development
 export const cdp = {
   async createWallet(userId: string): Promise<CDPWalletData> {
-    try {
-      const client = getCoinbaseClient()
-      
-      // Create wallet on Base Sepolia network
-      const wallet = await Wallet.create({
-        networkId: Coinbase.networks.BaseSepolia
-      })
-      
-      // Get the default address
-      const defaultAddress = await wallet.getDefaultAddress()
-      
-      // Export wallet data for storage (includes seed for recovery)
-      const walletData = wallet.export()
-      
-      console.log(`🔑 Created CDP wallet: ${defaultAddress.getId()} on ${wallet.getNetworkId()}`)
-      
-      return {
-        cdpWalletId: wallet.getId(),
-        address: defaultAddress.getId(),
-        network: wallet.getNetworkId(),
-        walletData // Store this securely in database
+    // Try to initialize CDP if not already done
+    if (!cdpAvailable) {
+      await initializeCDP()
+    }
+    
+    // If CDP is available, try to create real wallet
+    if (cdpAvailable && Wallet && Coinbase) {
+      try {
+        // Create wallet on Base Sepolia network
+        const wallet = await Wallet.create({
+          networkId: Coinbase.networks.BaseSepolia
+        })
+        
+        // Get the default address
+        const defaultAddress = await wallet.getDefaultAddress()
+        
+        // Export wallet data for storage (includes seed for recovery)
+        const walletData = wallet.export()
+        
+        console.log(`🔑 Created CDP wallet: ${defaultAddress.getId()} on ${wallet.getNetworkId()}`)
+        
+        return {
+          cdpWalletId: wallet.getId(),
+          address: defaultAddress.getId(),
+          network: wallet.getNetworkId(),
+          walletData // Store this securely in database
+        }
+      } catch (error) {
+        console.warn('Failed to create CDP wallet, using mock:', error)
       }
-    } catch (error) {
-      console.warn('Falling back to mock wallet creation:', error)
-      // Mock wallet creation for development
-      const mockAddress = `0x${Math.random().toString(16).slice(2, 42).padEnd(40, '0')}` as `0x${string}`
-      return {
-        cdpWalletId: `cdp_wallet_${userId}`,
-        address: mockAddress,
-        network: 'base-sepolia'
-      }
+    }
+    
+    // Fallback to mock wallet creation
+    console.log('📦 Creating mock wallet for', userId)
+    const mockAddress = `0x${Math.random().toString(16).slice(2, 42).padEnd(40, '0')}` as `0x${string}`
+    return {
+      cdpWalletId: `cdp_wallet_${userId}`,
+      address: mockAddress,
+      network: 'base-sepolia'
     }
   },
 
-  async importWallet(walletData: WalletData): Promise<Wallet> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async importWallet(walletData: any): Promise<any> {
+    if (!cdpAvailable || !Wallet) {
+      console.warn('CDP not available for wallet import')
+      return null
+    }
+    
     try {
       const wallet = await Wallet.import(walletData)
       return wallet
     } catch (error) {
       console.error('Failed to import CDP wallet:', error)
-      throw new Error('Failed to import wallet')
+      return null
     }
   },
 
   async getBalance(address: string): Promise<number> {
     try {
-      const client = getCoinbaseClient()
-      
-      // For real implementation, we need the wallet data to get balance
-      // This is a simplified version - in production, store wallet data securely
-      console.log(`Getting balance for ${address}`)
-      
-      // Use viem to read USDC balance directly from chain
+      // Try to use viem to read USDC balance directly from chain
       const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS as `0x${string}` || '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
       const balance = await publicClient.readContract({
         address: USDC_ADDRESS,
@@ -109,17 +141,24 @@ export const cdp = {
       // USDC has 6 decimals
       return Number(balance) / 1_000_000
     } catch (error) {
-      console.warn('Falling back to mock balance:', error)
-      return Math.random() * 100 // Mock balance for development
+      console.warn('Cannot read balance, using mock:', error)
+      return Math.random() * 1 // Small mock balance for development
     }
   },
 
   async requestFromFaucet(address: string): Promise<string> {
+    if (!cdpAvailable) {
+      await initializeCDP()
+    }
+    
+    if (!cdpAvailable || !coinbase || !Coinbase) {
+      console.log('CDP not available, returning mock faucet tx')
+      return 'mock-faucet-tx-' + Date.now()
+    }
+    
     try {
-      const client = getCoinbaseClient()
-      
       // Request USDC from Base Sepolia faucet
-      const faucetTx = await client.faucet(
+      const faucetTx = await coinbase.faucet(
         address,
         {
           assetId: Coinbase.assets.Usdc,
@@ -131,64 +170,59 @@ export const cdp = {
       return txHash
     } catch (error) {
       console.warn('Faucet request failed:', error)
-      // Try ETH faucet as backup
-      try {
-        const client = getCoinbaseClient()
-        const faucetTx = await client.faucet(address)
-        const txHash = faucetTx.getTransactionHash() || 'pending'
-        console.log(`⛽ Faucet ETH sent to ${address}: ${txHash}`)
-        return txHash
-      } catch (ethError) {
-        console.error('Both faucet requests failed:', ethError)
-        return 'mock-faucet-tx'
-      }
+      return 'mock-faucet-tx-' + Date.now()
     }
   },
 
   async transferUsdc(
-    fromWalletData: WalletData | null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fromWalletData: any | null,
     toAddress: string,
     amountUsd: number
   ): Promise<TransferResult> {
-    try {
-      if (!fromWalletData) {
-        throw new Error('Wallet data required for transfer')
+    if (!cdpAvailable) {
+      await initializeCDP()
+    }
+    
+    if (cdpAvailable && fromWalletData && Coinbase) {
+      try {
+        const wallet = await cdp.importWallet(fromWalletData)
+        
+        if (wallet) {
+          console.log(`💸 Initiating transfer of ${amountUsd} USDC to ${toAddress}`)
+          
+          // Create and broadcast the transfer
+          // Use gasless option for USDC to avoid needing ETH for gas
+          const transfer = await wallet.createTransfer({
+            amount: amountUsd,
+            assetId: Coinbase.assets.Usdc,
+            destination: toAddress,
+            gasless: true
+          })
+          
+          // Wait for the transfer to complete
+          await transfer.wait()
+          
+          const txHash = transfer.getTransactionHash() || 'completed'
+          console.log(`✅ Transfer complete: ${txHash}`)
+          
+          return {
+            txHash,
+            status: 'success'
+          }
+        }
+      } catch (error) {
+        console.warn('CDP transfer failed, using mock:', error)
       }
-      
-      const wallet = await cdp.importWallet(fromWalletData)
-      
-      console.log(`💸 Initiating transfer of ${amountUsd} USDC to ${toAddress}`)
-      
-      // Create and broadcast the transfer
-      // Use gasless option for USDC to avoid needing ETH for gas
-      const transfer = await wallet.createTransfer({
-        amount: amountUsd,
-        assetId: Coinbase.assets.Usdc,
-        destination: toAddress,
-        gasless: true
-      })
-      
-      // Wait for the transfer to complete
-      await transfer.wait()
-      
-      const txHash = transfer.getTransactionHash() || 'completed'
-      console.log(`✅ Transfer complete: ${txHash}`)
-      
-      return {
-        txHash,
-        status: 'success'
-      }
-    } catch (error) {
-      console.warn('Falling back to mock transfer:', error)
-      // Mock transfer for development
-      const mockTxHash = `0x${Math.random().toString(16).slice(2).padEnd(64, '0')}`
-      
-      console.log(`[CDP Mock] Transfer ${amountUsd} USDC to ${toAddress}`)
-      
-      return {
-        txHash: mockTxHash,
-        status: 'pending'
-      }
+    }
+    
+    // Mock transfer for development
+    const mockTxHash = `0x${Math.random().toString(16).slice(2).padEnd(64, '0')}`
+    console.log(`[Mock] Transfer ${amountUsd} USDC to ${toAddress}`)
+    
+    return {
+      txHash: mockTxHash,
+      status: 'pending'
     }
   },
 

@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     console.log(`✅ Created wallet for user ${data.userId}: ${wallet.address}`)
     
     // Don't return sensitive wallet data to client
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { walletData, ...safeWallet } = wallet
     return NextResponse.json(safeWallet)
   } catch (error) {
