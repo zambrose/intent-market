@@ -166,6 +166,7 @@ export default function Home() {
     await new Promise(resolve => setTimeout(resolve, 2000))
 
     // Phase 3: Agents submit suggestions using OpenAI (process in smaller batches)
+    const successfulSubmissions: Agent[] = [] // Track successful agents for rewards
     const BATCH_SIZE = 2 // Process 2 agents at a time to avoid overwhelming OpenAI
     
     for (let batchStart = 0; batchStart < activeAgents.length; batchStart += BATCH_SIZE) {
@@ -199,6 +200,12 @@ export default function Home() {
           const suggestionText = submission.payloadJson?.details || submission.payloadJson?.suggestion || 'Thinking...'
           console.log(`✨ Final suggestion text for ${agent.name}: "${suggestionText}"`)
           
+          // Track successful submission for rewards
+          successfulSubmissions.push({
+            ...agent,
+            suggestion: suggestionText
+          })
+          
           setAgents(prev => prev.map(a => 
             a.id === agent.id 
               ? { 
@@ -229,7 +236,7 @@ export default function Home() {
     }
 
     // Phase 4: Send real micro-payments to all participants
-    const participatingAgents = agents.filter(a => a.stakedAmount >= 10 && a.suggestion)
+    const participatingAgents = successfulSubmissions.filter(a => a.stakedAmount >= 10)
     console.log(`💸 Sending participation rewards to ${participatingAgents.length} agents...`)
     
     for (const agent of participatingAgents) {
