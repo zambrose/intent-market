@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getAgentPersonality } from './lib/openai'
 import AgentModal from './components/AgentModal'
-import WalletDisplay from './components/WalletDisplay'
+import DemoWallet from './components/DemoWallet'
 import WalletWarning from './components/WalletWarning'
 import { DollarSign, Trophy, Zap, Brain, History } from 'lucide-react'
 import Link from 'next/link'
@@ -49,26 +49,59 @@ export default function Home() {
   const [useOpenAI, setUseOpenAI] = useState(true)
   const [microPaymentAmount] = useState(0.002) // $0.002 for participation
 
-  // Initialize agents with personalities and stats
+  // Initialize agents with personalities and fetch wallet data
   useEffect(() => {
-    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#FFB6C1']
-    const initialAgents = Array.from({ length: 8 }, (_, i) => {
-      const personality = getAgentPersonality(i)
-      return {
-        id: `agent-${i}`,
-        name: personality.name,
-        color: colors[i],
-        x: Math.random() * 80 + 10,
-        y: Math.random() * 60 + 20,
-        status: 'sleeping' as const,
-        stakedAmount: 10 + Math.random() * 40, // $10-50 staked
-        totalEarnings: Math.random() * 500,
-        winRate: Math.random() * 0.4 + 0.1,
-        totalSubmissions: Math.floor(Math.random() * 100),
-        personality: personality.style
+    const initializeAgents = async () => {
+      const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#FFB6C1']
+      
+      // Fetch real agent wallet data
+      try {
+        const res = await fetch('/api/agents/wallets')
+        const agentWallets = await res.json()
+        
+        const initialAgents = Array.from({ length: Math.min(8, agentWallets.length) }, (_, i) => {
+          const personality = getAgentPersonality(i)
+          const walletData = agentWallets[i]
+          return {
+            id: walletData?.id || `agent-${i}`,
+            name: personality.name,
+            color: colors[i],
+            x: Math.random() * 80 + 10,
+            y: Math.random() * 60 + 20,
+            status: 'sleeping' as const,
+            stakedAmount: 10 + Math.random() * 40, // $10-50 staked
+            totalEarnings: walletData?.balance || Math.random() * 500,
+            winRate: Math.random() * 0.4 + 0.1,
+            totalSubmissions: Math.floor(Math.random() * 100),
+            personality: personality.style,
+            walletAddress: walletData?.walletAddress
+          }
+        })
+        setAgents(initialAgents)
+      } catch (error) {
+        console.error('Failed to fetch agent wallets:', error)
+        // Fall back to mock data
+        const initialAgents = Array.from({ length: 8 }, (_, i) => {
+          const personality = getAgentPersonality(i)
+          return {
+            id: `agent-${i}`,
+            name: personality.name,
+            color: colors[i],
+            x: Math.random() * 80 + 10,
+            y: Math.random() * 60 + 20,
+            status: 'sleeping' as const,
+            stakedAmount: 10 + Math.random() * 40,
+            totalEarnings: Math.random() * 500,
+            winRate: Math.random() * 0.4 + 0.1,
+            totalSubmissions: Math.floor(Math.random() * 100),
+            personality: personality.style
+          }
+        })
+        setAgents(initialAgents)
       }
-    })
-    setAgents(initialAgents)
+    }
+    
+    initializeAgents()
   }, [])
 
   const createIntention = async () => {
@@ -261,7 +294,7 @@ export default function Home() {
             Intent Market
           </h1>
           <div className="flex items-center space-x-4">
-            <WalletDisplay userId="demo-user" />
+            <DemoWallet />
             <Link
               href="/history"
               className="flex items-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"

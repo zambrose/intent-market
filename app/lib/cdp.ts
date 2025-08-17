@@ -26,6 +26,14 @@ export async function initializeCDP() {
     
     if (!apiKeyName || !apiKeySecret || apiKeyName === 'your-cdp-api-key' || apiKeyName === 'mock-api-key') {
       console.warn('CDP API credentials not configured - using mock mode')
+      console.log('API Key provided:', apiKeyName?.substring(0, 8) + '...')
+      return false
+    }
+    
+    // Check if it's a valid UUID format for API key
+    const isValidApiKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(apiKeyName)
+    if (!isValidApiKey) {
+      console.warn('CDP API key format appears invalid')
       return false
     }
     

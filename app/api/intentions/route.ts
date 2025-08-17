@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/app/lib/db'
+import { getDemoUserId } from '@/app/lib/demo-user'
 import { Decimal } from '@prisma/client/runtime/library'
 
 const CreateIntentionSchema = z.object({
@@ -20,34 +21,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = CreateIntentionSchema.parse(body)
     
-    // Ensure user exists or create with real wallet
-    let user = await db.user.findUnique({
-      where: { email: 'demo@intent.market' },
+    // Get or create demo user
+    const demoUserId = await getDemoUserId()
+    const user = await db.user.findUnique({
+      where: { id: demoUserId },
       include: { wallet: true }
     })
     
     if (!user) {
-      // Create user with real CDP wallet
-      const { cdp } = await import('@/app/lib/cdp')
-      const cdpWallet = await cdp.createWallet('demo-user')
-      
-      user = await db.user.create({
-        data: {
-          email: 'demo@intent.market',
-          role: 'REQUESTER',
-          wallet: {
-            create: {
-              cdpWalletId: cdpWallet.cdpWalletId,
-              address: cdpWallet.address,
-              network: cdpWallet.network,
-              walletData: cdpWallet.walletData
-            }
-          }
-        },
-        include: { wallet: true }
-      })
-      
-      console.log(`Created user with wallet: ${user.wallet?.address}`)
+      throw new Error('Failed to get demo user')
     }
     
     const intention = await db.intention.create({
