@@ -26,6 +26,7 @@ interface Agent {
   personality: string
   walletAddress?: string
   walletBalance?: number
+  agentIndex: number
 }
 
 interface Intention {
@@ -78,7 +79,8 @@ export default function Home() {
             totalSubmissions: Math.floor(Math.random() * 100),
             personality: personality.style,
             walletAddress: walletData?.walletAddress,
-            walletBalance: walletData?.balance || 0
+            walletBalance: walletData?.balance || 0,
+            agentIndex: i
           }
         })
         setAgents(initialAgents)
@@ -98,7 +100,8 @@ export default function Home() {
             totalEarnings: Math.random() * 500,
             winRate: Math.random() * 0.4 + 0.1,
             totalSubmissions: Math.floor(Math.random() * 100),
-            personality: personality.style
+            personality: personality.style,
+            agentIndex: i
           }
         })
         setAgents(initialAgents)
@@ -164,7 +167,8 @@ export default function Home() {
     // Phase 3: Agents submit suggestions using OpenAI
     for (let i = 0; i < activeAgents.length; i++) {
       const agent = activeAgents[i]
-      const agentIndex = parseInt(agent.id.split('-')[1])
+      // Use the stored agentIndex for personality selection
+      const agentIndex = agent.agentIndex
       
       // Call API with OpenAI flag
       try {
