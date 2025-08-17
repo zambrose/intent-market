@@ -105,17 +105,23 @@ export async function POST(
     // Generate response using OpenAI if requested
     let payloadJson = data.payloadJson
     if (!payloadJson && data.agentIndex !== undefined) {
+      console.log(`🎯 API: Generating response for agent ${data.agentId}, useOpenAI=${data.useOpenAI}`)
+      
       const suggestion = await generateAgentResponse(
         intention.title + ' - ' + intention.description,
         data.agentIndex,
         data.useOpenAI !== false
       )
       
+      console.log(`💬 API: Got suggestion: "${suggestion}"`)
+      
       payloadJson = {
-        suggestion: suggestion.split(' - ')[0] || suggestion,
-        details: suggestion.split(' - ')[1] || suggestion,
+        suggestion: suggestion,
+        details: suggestion,
         confidence: 0.7 + Math.random() * 0.3
       }
+      
+      console.log(`📦 API: Final payloadJson:`, payloadJson)
     }
     
     if (!payloadJson) {

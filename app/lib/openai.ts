@@ -1,10 +1,15 @@
 import OpenAI from 'openai'
 
-const openai = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-...' 
+const apiKey = process.env.OPENAI_API_KEY
+console.log(`🔑 OpenAI initialization: key exists=${!!apiKey}, key length=${apiKey?.length}, starts with sk-=${apiKey?.startsWith('sk-')}`)
+
+const openai = apiKey && apiKey !== 'sk-...' 
   ? new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     })
   : null
+
+console.log(`🤖 OpenAI client initialized: ${!!openai}`)
 
 export interface AgentPersonality {
   name: string
@@ -71,72 +76,63 @@ export async function generateAgentResponse(
 ): Promise<string> {
   const personality = agentPersonalities[agentIndex % agentPersonalities.length]
   
+  console.log(`🤖 generateAgentResponse called:`, {
+    userPrompt,
+    agentIndex,
+    useOpenAI,
+    personality: personality.name,
+    hasOpenAI: !!openai
+  })
+  
   // If OpenAI is not configured or disabled, return mock response
   if (!openai || !useOpenAI) {
+    console.log(`⚠️ Using mock response (OpenAI ${!openai ? 'not configured' : 'disabled'})`)
     return generateMockResponse(userPrompt, personality)
   }
   
   try {
-    const systemPrompt = `You are ${personality.name}, a ${personality.role} with expertise in ${personality.expertise.join(', ')}.
+    // Dynamic system prompt that adapts to the user's actual request
+    const systemPrompt = `You are ${personality.name}, a ${personality.role}.
 Your communication style is ${personality.style}.
-Respond to restaurant/venue requests with a specific recommendation in 1-2 sentences.
-Format: [Restaurant Name] - [Brief compelling description]
-Be unique and don't repeat what others might suggest.`
+The user is asking for: "${userPrompt}"
 
+Provide a specific, helpful recommendation that directly addresses their request.
+Include the actual name of a place, service, or product with a brief compelling description.
+Be unique and creative. Each agent should offer different perspectives.
+Keep your response to 1-2 sentences maximum.`
+
+    console.log(`📤 Calling OpenAI with prompt:`, systemPrompt.substring(0, 200) + '...')
+    
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        { role: "user", content: `Based on my request above, what's your best recommendation?` }
       ],
       max_tokens: 100,
-      temperature: 0.8, // Add variety between agents
+      temperature: 0.8 + (agentIndex * 0.05), // Vary temperature per agent for diversity
     })
     
-    return completion.choices[0]?.message?.content || generateMockResponse(userPrompt, personality)
+    const response = completion.choices[0]?.message?.content
+    console.log(`✅ OpenAI response for ${personality.name}: "${response}"`)
+    
+    return response || generateMockResponse(userPrompt, personality)
   } catch (error) {
-    console.error('OpenAI error:', error)
+    console.error('🔴 OpenAI error:', error)
+    console.log('🔄 Falling back to mock response')
     return generateMockResponse(userPrompt, personality)
   }
 }
 
 function generateMockResponse(userPrompt: string, personality: AgentPersonality): string {
-  const mockResponses: Record<string, string[]> = {
-    "Local Expert": [
-      "Freemans on Chrystie - Hidden speakeasy down an alley with amazing cocktails and rustic American fare",
-      "Russ & Daughters - Century-old appetizing shop with the best lox and bagels in the city"
-    ],
-    "Foodie": [
-      "Contra - Michelin-starred tasting menu with natural wines at surprisingly reasonable prices",
-      "Dirty French - Elevated bistro fare with escargot and duck confit worth writing home about"
-    ],
-    "Budget Hunter": [
-      "Joe's Pizza on Carmine - Classic NYC slice that won't break the bank but delivers on flavor",
-      "Xi'an Famous Foods - Hand-pulled noodles and Chinese street food under $15"
-    ],
-    "Romantic": [
-      "Beauty & Essex - Enter through a pawn shop into a glamorous space perfect for special occasions",
-      "The Jane - Stunning venue in a former ballroom with soaring ceilings and intimate corners"
-    ],
-    "Trendsetter": [
-      "Cote - Korean steakhouse with a Michelin star and the hottest reservation in town",
-      "Carbone - Instagram-famous Italian-American with tableside Caesar and spicy rigatoni"
-    ],
-    "Classic Connoisseur": [
-      "Balthazar - Timeless French bistro that feels like Paris in SoHo",
-      "Gramercy Tavern - Danny Meyer's flagship with impeccable service and seasonal American cuisine"
-    ],
-    "Adventure Seeker": [
-      "Please Don't Tell - Secret bar through a phone booth in a hot dog shop",
-      "Noodle Pudding - Brooklyn Italian with no sign, cash only, and incredible osso buco"
-    ],
-    "Health Conscious": [
-      "Sacred Chow - Plant-based kosher with creative vegan takes on comfort food",
-      "The Butcher's Daughter - Vegetable slaughterhouse with fresh juices and grain bowls"
-    ]
-  }
+  console.log(`⚠️ MOCK RESPONSE CALLED for ${personality.name} - This should not happen if OpenAI is enabled!`)
+  // Generate a generic response based on the personality type when OpenAI is not available
+  const responses = [
+    `As a ${personality.role}, I recommend exploring options that match your request for: ${userPrompt.substring(0, 50)}...`,
+    `${personality.name} suggests checking out highly-rated options for your needs`,
+    `Based on my expertise in ${personality.expertise[0]}, I'd recommend researching top-rated choices`
+  ]
   
-  const responses = mockResponses[personality.name] || ["Generic recommendation based on your request"]
   return responses[Math.floor(Math.random() * responses.length)]
 }
 

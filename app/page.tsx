@@ -43,7 +43,7 @@ export default function Home() {
   const [isSimulating, setIsSimulating] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentModal, setShowAgentModal] = useState(false)
-  const [useOpenAI, setUseOpenAI] = useState(false)
+  const [useOpenAI, setUseOpenAI] = useState(true)
   const [microPaymentAmount] = useState(0.02) // $0.02 for participation
 
   // Initialize agents with personalities and stats
@@ -71,6 +71,8 @@ export default function Home() {
   const createIntention = async () => {
     if (!userInput.trim()) return
 
+    console.log(`🎯 Creating intention with OpenAI=${useOpenAI}`)
+    
     try {
       const res = await fetch('/api/intentions', {
         method: 'POST',
@@ -89,6 +91,7 @@ export default function Home() {
       })
 
       const intention = await res.json()
+      console.log(`📝 Created intention:`, intention)
       setActiveIntention(intention)
       
       // Start agent simulation with OpenAI
@@ -125,6 +128,8 @@ export default function Home() {
       
       // Call API with OpenAI flag
       try {
+        console.log(`🚀 Submitting for ${agent.name} (${agent.id}) with OpenAI=${useOpenAI}`)
+        
         const res = await fetch(`/api/intentions/${intentionId}/submissions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -136,17 +141,26 @@ export default function Home() {
         })
         
         const submission = await res.json()
+        console.log(`📥 Response for ${agent.name}:`, submission)
+        console.log(`📝 PayloadJson:`, submission.payloadJson)
         
-        setAgents(prev => prev.map(a => 
-          a.id === agent.id 
-            ? { 
-                ...a, 
-                status: 'submitting', 
-                suggestion: submission.payloadJson?.suggestion || 'Thinking...',
-                totalSubmissions: a.totalSubmissions + 1
-              }
-            : a
-        ))
+        const suggestionText = submission.payloadJson?.details || submission.payloadJson?.suggestion || 'Thinking...'
+        console.log(`✨ Final suggestion text for ${agent.name}: "${suggestionText}"`)
+        
+        setAgents(prev => {
+          const updated = prev.map(a => 
+            a.id === agent.id 
+              ? { 
+                  ...a, 
+                  status: 'submitting', 
+                  suggestion: suggestionText,
+                  totalSubmissions: a.totalSubmissions + 1
+                }
+              : a
+          )
+          console.log(`🔄 Updated agents state, ${agent.name} suggestion: "${updated.find(a => a.id === agent.id)?.suggestion}"`)
+          return updated
+        })
       } catch (error) {
         console.error('Submission error:', error)
       }
@@ -231,11 +245,7 @@ export default function Home() {
   }
 
   const handleAgentClick = (agent: Agent) => {
-    const agentWithWins = {
-      ...agent,
-      recentWins: ['Date night in LES', 'Best brunch spots', 'Hidden bars'].slice(0, Math.floor(Math.random() * 3) + 1)
-    }
-    setSelectedAgent(agentWithWins as Agent)
+    setSelectedAgent(agent)
     setShowAgentModal(true)
   }
 
@@ -457,10 +467,7 @@ export default function Home() {
 
       {/* Agent Detail Modal */}
       <AgentModal
-        agent={selectedAgent ? {
-          ...selectedAgent,
-          recentWins: ['Date night in LES', 'Best brunch spots', 'Hidden bars'].slice(0, Math.floor(Math.random() * 3) + 1)
-        } : null}
+        agent={selectedAgent}
         isOpen={showAgentModal}
         onClose={() => setShowAgentModal(false)}
       />

@@ -12,7 +12,7 @@ interface AgentStats {
   totalEarnings: number
   winRate: number
   totalSubmissions: number
-  recentWins: string[]
+  recentWins?: string[]
 }
 
 interface AgentModalProps {
@@ -89,7 +89,7 @@ export default function AgentModal({ agent, isOpen, onClose }: AgentModalProps) 
                 </div>
               </div>
 
-              {agent.recentWins.length > 0 && (
+              {agent.recentWins && agent.recentWins.length > 0 && (
                 <div className="bg-gray-700/50 rounded-lg p-4">
                   <h3 className="text-sm font-medium text-gray-400 mb-2">Recent Wins</h3>
                   <ul className="space-y-1">
