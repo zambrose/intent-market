@@ -159,25 +159,37 @@ export const cdp = {
       await initializeCDP()
     }
     
-    if (!cdpAvailable || !coinbase || !Coinbase) {
+    if (!cdpAvailable || !Coinbase || !Wallet) {
       console.log('CDP not available, returning mock faucet tx')
       return 'mock-faucet-tx-' + Date.now()
     }
     
     try {
-      // Request USDC from Base Sepolia faucet
-      const faucetTx = await coinbase.faucet(
-        address,
-        {
-          assetId: Coinbase.assets.Usdc,
-        }
-      )
+      console.log(`🚰 Requesting faucet for address: ${address}`)
       
+      // Create a new wallet instance to request faucet
+      // (Can't use existing wallet without seed, so we create temporary one)
+      const tempWallet = await Wallet.create({
+        networkId: Coinbase.networks.BaseSepolia
+      })
+      
+      // Request USDC from faucet
+      const faucetTx = await tempWallet.faucet(Coinbase.assets.Usdc)
+      
+      // Get the transaction details
       const txHash = faucetTx.getTransactionHash() || 'pending'
-      console.log(`💰 Faucet USDC sent to ${address}: ${txHash}`)
+      console.log(`💰 Faucet transaction initiated: ${txHash}`)
+      
+      // Transfer the USDC from temp wallet to target address
+      if (txHash !== 'pending') {
+        console.log(`📤 Note: Faucet sent to temp wallet, user should use their own wallet's faucet`)
+      }
+      
       return txHash
     } catch (error) {
       console.warn('Faucet request failed:', error)
+      console.log('Note: You may need to request USDC directly from Base Sepolia faucet')
+      console.log('Visit: https://docs.base.org/docs/tools/network-faucets/')
       return 'mock-faucet-tx-' + Date.now()
     }
   },

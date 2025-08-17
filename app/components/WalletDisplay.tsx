@@ -64,29 +64,47 @@ export default function WalletDisplay({ userId }: { userId?: string }) {
   }
   
   const requestFromFaucet = async () => {
-    if (!wallet || !userId) return
+    if (!wallet || !userId) {
+      console.error('Cannot request faucet: missing wallet or userId', { wallet, userId })
+      return
+    }
+    
+    console.log('🚰 Requesting USDC from faucet for address:', wallet.address)
+    console.log('   View on BaseScan:', `https://sepolia.basescan.org/address/${wallet.address}`)
     
     setFaucetLoading(true)
     try {
-      // Get wallet ID first
-      const walletRes = await fetch(`/api/wallets?userId=${userId}`)
-      const walletData = await walletRes.json()
-      
-      const res = await fetch(`/api/wallets/${walletData.id}/faucet`, {
-        method: 'POST'
+      const res = await fetch('/api/wallets/faucet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: wallet.address
+        })
       })
       
       if (res.ok) {
         const data = await res.json()
-        console.log('Faucet request:', data)
+        console.log('✅ Faucet request successful:', data)
+        console.log('   Transaction hash:', data.txHash)
+        if (data.txHash && !data.txHash.startsWith('mock')) {
+          console.log('   View on BaseScan:', `https://sepolia.basescan.org/tx/${data.txHash}`)
+        }
         
         // Refresh balance after a delay
+        console.log('   Balance will refresh in 10 seconds...')
         setTimeout(() => {
+          console.log('🔄 Refreshing wallet balance...')
           fetchWallet()
-        }, 5000)
+        }, 10000)
+      } else {
+        const error = await res.json()
+        console.error('❌ Faucet request failed:', error)
+        if (res.status === 429) {
+          console.log('   Rate limited - please wait a few minutes before trying again')
+        }
       }
     } catch (error) {
-      console.error('Faucet request failed:', error)
+      console.error('❌ Faucet request error:', error)
     } finally {
       setFaucetLoading(false)
     }
