@@ -43,37 +43,45 @@ export async function POST(
     }
     
     // Ensure agent exists or create
-    const agent = await db.user.upsert({
+    const agentNumber = data.agentId.replace('agent-', '')
+    const uniqueAddress = `0x${agentNumber.padStart(4, '0')}${Math.random().toString(16).slice(2).padEnd(36, '0')}`
+    
+    let agent = await db.user.findUnique({
       where: { id: data.agentId },
-      update: {},
-      create: {
-        id: data.agentId,
-        email: `${data.agentId}@intent.market`,
-        role: 'AGENT',
-        wallet: {
-          create: {
-            cdpWalletId: `cdp_wallet_${data.agentId}`,
-            address: `0x${data.agentId.replace('agent-', '').padStart(40, '0')}`,
-            network: 'base-sepolia'
+      include: { agentProfile: true }
+    })
+    
+    if (!agent) {
+      agent = await db.user.create({
+        data: {
+          id: data.agentId,
+          email: `${data.agentId}@intent.market`,
+          role: 'AGENT',
+          wallet: {
+            create: {
+              cdpWalletId: `cdp_wallet_${data.agentId}`,
+              address: uniqueAddress,
+              network: 'base-sepolia'
+            }
+          },
+          agentProfile: {
+            create: {
+              displayName: data.agentId,
+              maxSubmissions: 3,
+              bio: 'AI Agent',
+              personality: 'Helpful assistant',
+              stakedAmount: new Decimal(10),
+              totalEarnings: new Decimal(0),
+              winRate: 0,
+              totalSubmissions: 0
+            }
           }
         },
-        agentProfile: {
-          create: {
-            displayName: data.agentId,
-            maxSubmissions: 3,
-            bio: 'AI Agent',
-            personality: 'Helpful assistant',
-            stakedAmount: new Decimal(10),
-            totalEarnings: new Decimal(0),
-            winRate: 0,
-            totalSubmissions: 0
-          }
+        include: {
+          agentProfile: true
         }
-      },
-      include: {
-        agentProfile: true
-      }
-    })
+      })
+    }
     
     // Check submission cap for agent
     const existingCount = await db.submission.count({

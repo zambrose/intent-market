@@ -4,7 +4,7 @@ import { db } from '@/app/lib/db'
 import { Decimal } from '@prisma/client/runtime/library'
 
 const CreateIntentionSchema = z.object({
-  userId: z.string(),
+  userId: z.string().optional(),
   title: z.string(),
   description: z.string(),
   category: z.string(),
