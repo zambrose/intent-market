@@ -43,15 +43,16 @@ export async function POST(
     }
     
     // Ensure agent exists or create
-    const agentNumber = data.agentId.replace('agent-', '')
-    const uniqueAddress = `0x${agentNumber.padStart(4, '0')}${Math.random().toString(16).slice(2).padEnd(36, '0')}`
-    
     let agent = await db.user.findUnique({
       where: { id: data.agentId },
       include: { agentProfile: true }
     })
     
     if (!agent) {
+      // Create agent with real CDP wallet
+      const { cdp } = await import('@/app/lib/cdp')
+      const cdpWallet = await cdp.createWallet(data.agentId)
+      
       agent = await db.user.create({
         data: {
           id: data.agentId,
@@ -59,9 +60,10 @@ export async function POST(
           role: 'AGENT',
           wallet: {
             create: {
-              cdpWalletId: `cdp_wallet_${data.agentId}`,
-              address: uniqueAddress,
-              network: 'base-sepolia'
+              cdpWalletId: cdpWallet.cdpWalletId,
+              address: cdpWallet.address,
+              network: cdpWallet.network,
+              walletData: cdpWallet.walletData
             }
           },
           agentProfile: {
@@ -78,9 +80,12 @@ export async function POST(
           }
         },
         include: {
-          agentProfile: true
+          agentProfile: true,
+          wallet: true
         }
       })
+      
+      console.log(`Created agent ${data.agentId} with wallet: ${agent.wallet?.address}`)
     }
     
     // Check submission cap for agent
@@ -147,7 +152,12 @@ export async function POST(
       include: {
         agent: {
           include: {
-            agentProfile: true
+            agentProfile: true,
+            wallet: {
+              select: {
+                address: true
+              }
+            }
           }
         }
       }
@@ -175,7 +185,12 @@ export async function GET(
       include: {
         agent: {
           include: {
-            agentProfile: true
+            agentProfile: true,
+            wallet: {
+              select: {
+                address: true
+              }
+            }
           }
         }
       },

@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getAgentPersonality } from './lib/openai'
 import AgentModal from './components/AgentModal'
-import { DollarSign, Trophy, Zap, Brain, History } from 'lucide-react'
+import WalletDisplay from './components/WalletDisplay'
+import { DollarSign, Trophy, Zap, Brain, History, Wallet } from 'lucide-react'
 import Link from 'next/link'
 
 interface Agent {
@@ -21,6 +22,7 @@ interface Agent {
   winRate: number
   totalSubmissions: number
   personality: string
+  walletAddress?: string
 }
 
 interface Intention {
@@ -44,7 +46,7 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentModal, setShowAgentModal] = useState(false)
   const [useOpenAI, setUseOpenAI] = useState(true)
-  const [microPaymentAmount] = useState(0.02) // $0.02 for participation
+  const [microPaymentAmount] = useState(0.002) // $0.002 for participation
 
   // Initialize agents with personalities and stats
   useEffect(() => {
@@ -82,10 +84,10 @@ export default function Home() {
           title: userInput,
           description: `Looking for recommendations: ${userInput}`,
           category: 'recommendations',
-          budgetUsd: 5,
+          budgetUsd: 0.5,
           winnersCount: 3,
           participationUsd: microPaymentAmount,
-          selectionUsd: 0.50,
+          selectionUsd: 0.05,
           windowHours: 0.1
         })
       })
@@ -208,7 +210,7 @@ export default function Home() {
     setAgents(prev => prev.map(agent => {
       if (winners.includes(agent.id)) {
         const isTopWinner = winners[0] === agent.id
-        const winReward = isTopWinner ? 0.75 : 0.50
+        const winReward = isTopWinner ? 0.075 : 0.05
         return {
           ...agent,
           status: 'rewarded',
@@ -257,6 +259,7 @@ export default function Home() {
             Intent Market
           </h1>
           <div className="flex items-center space-x-4">
+            <WalletDisplay userId="demo-user" />
             <Link
               href="/history"
               className="flex items-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -274,7 +277,7 @@ export default function Home() {
               <span>Use OpenAI</span>
             </label>
             <div className="text-sm text-gray-400">
-              <span className="text-green-400">⚡</span> Micro-payment: ${microPaymentAmount}/submission
+              <span className="text-green-400">⚡</span> Micro-payment: ${microPaymentAmount.toFixed(3)}/submission
             </div>
           </div>
         </div>
@@ -300,7 +303,7 @@ export default function Home() {
                 {isSimulating ? 'Agents Working...' : 'Broadcast Intent'}
               </button>
               <div className="text-sm text-gray-400">
-                <DollarSign className="inline w-4 h-4" /> Budget: $5
+                <DollarSign className="inline w-4 h-4" /> Budget: $0.50
               </div>
             </div>
           </div>
@@ -399,7 +402,7 @@ export default function Home() {
               <h2 className="text-2xl font-bold">Agent Submissions</h2>
               <div className="text-sm text-gray-400">
                 <Zap className="inline w-4 h-4 text-yellow-400" />
-                {agents.filter(a => a.suggestion).length} agents earned ${microPaymentAmount} each
+                {agents.filter(a => a.suggestion).length} agents earned ${microPaymentAmount.toFixed(3)} each
               </div>
             </div>
             <div className="space-y-3">

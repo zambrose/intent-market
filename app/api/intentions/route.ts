@@ -20,22 +20,35 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = CreateIntentionSchema.parse(body)
     
-    // Ensure user exists or create
-    const user = await db.user.upsert({
+    // Ensure user exists or create with real wallet
+    let user = await db.user.findUnique({
       where: { email: 'demo@intent.market' },
-      update: {},
-      create: {
-        email: 'demo@intent.market',
-        role: 'REQUESTER',
-        wallet: {
-          create: {
-            cdpWalletId: 'cdp_wallet_demo',
-            address: '0x1234567890123456789012345678901234567890',
-            network: 'base-sepolia'
-          }
-        }
-      }
+      include: { wallet: true }
     })
+    
+    if (!user) {
+      // Create user with real CDP wallet
+      const { cdp } = await import('@/app/lib/cdp')
+      const cdpWallet = await cdp.createWallet('demo-user')
+      
+      user = await db.user.create({
+        data: {
+          email: 'demo@intent.market',
+          role: 'REQUESTER',
+          wallet: {
+            create: {
+              cdpWalletId: cdpWallet.cdpWalletId,
+              address: cdpWallet.address,
+              network: cdpWallet.network,
+              walletData: cdpWallet.walletData
+            }
+          }
+        },
+        include: { wallet: true }
+      })
+      
+      console.log(`Created user with wallet: ${user.wallet?.address}`)
+    }
     
     const intention = await db.intention.create({
       data: {

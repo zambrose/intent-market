@@ -33,6 +33,7 @@ model Wallet {
   cdpWalletId  String
   address      String   @unique
   network      String
+  walletData   Json?    // Encrypted wallet data for recovery
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id])
 }

@@ -90,9 +90,10 @@ export async function POST(
           }
         })
         
-        // Trigger CDP transfer (mock for now)
+        // Trigger CDP transfer with real wallet data
+        const userWalletData = intention.user.wallet.walletData as any
         const transfer = await cdp.transferUsdc(
-          intention.user.wallet.cdpWalletId,
+          userWalletData,
           agentWallet.address,
           Number(intention.participationUsd)
         )
@@ -130,9 +131,10 @@ export async function POST(
           }
         })
         
-        // Trigger CDP transfer (mock for now)
+        // Trigger CDP transfer with real wallet data
+        const userWalletData = intention.user.wallet.walletData as any
         const transfer = await cdp.transferUsdc(
-          intention.user.wallet.cdpWalletId,
+          userWalletData,
           agentWallet.address,
           Number(intention.selectionUsd)
         )
