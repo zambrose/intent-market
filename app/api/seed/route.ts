@@ -20,16 +20,53 @@ export async function POST(req: NextRequest) {
     const existingAgents = await db.agentProfile.count()
     const existingUsers = await db.user.count()
     
-    // If force flag is set, clean everything
+    // If force flag is set, clean everything EXCEPT wallets by default
     if (force) {
-      console.log('Force flag set, cleaning all data...')
-      // Delete in correct order to respect foreign keys
-      await db.submission.deleteMany({})
-      await db.intention.deleteMany({})
-      await db.agentProfile.deleteMany({})
-      await db.wallet.deleteMany({})
-      await db.user.deleteMany({})
-      console.log('All data cleaned')
+      const preserveWallets = searchParams.get('preserveWallets') !== 'false'
+      
+      if (preserveWallets) {
+        console.log('Force flag set with wallet preservation...')
+        // Store existing wallets to restore
+        const existingWallets = await db.wallet.findMany({
+          include: { user: true }
+        })
+        
+        // Delete in correct order to respect foreign keys
+        await db.submission.deleteMany({})
+        await db.intention.deleteMany({})
+        await db.agentProfile.deleteMany({})
+        await db.user.deleteMany({})
+        console.log('Data cleaned (wallets preserved in memory)')
+        
+        // Restore users with their wallets
+        for (const wallet of existingWallets) {
+          await db.user.create({
+            data: {
+              id: wallet.userId,
+              email: wallet.user.email,
+              role: wallet.user.role,
+              wallet: {
+                create: {
+                  cdpWalletId: wallet.cdpWalletId,
+                  address: wallet.address,
+                  network: wallet.network,
+                  walletData: wallet.walletData
+                }
+              }
+            }
+          })
+          console.log(`Restored user ${wallet.user.email} with existing wallet ${wallet.address}`)
+        }
+      } else {
+        console.log('Force flag set, cleaning ALL data including wallets...')
+        // Delete in correct order to respect foreign keys
+        await db.submission.deleteMany({})
+        await db.intention.deleteMany({})
+        await db.agentProfile.deleteMany({})
+        await db.wallet.deleteMany({})
+        await db.user.deleteMany({})
+        console.log('All data cleaned including wallets')
+      }
     } else {
       // If we have agents already, don't reseed
       if (existingAgents > 0) {
@@ -57,47 +94,90 @@ export async function POST(req: NextRequest) {
     // Import CDP for wallet creation
     const { cdp } = await import('@/app/lib/cdp')
     
-    // Create requester user with wallet
-    const requesterWallet = await cdp.createWallet('demo-requester')
-    const requester = await db.user.create({
-      data: {
-        email: 'demo@intent.market',
-        role: 'REQUESTER',
-        wallet: {
-          create: {
-            cdpWalletId: requesterWallet.cdpWalletId,
-            address: requesterWallet.address,
-            network: requesterWallet.network,
-            walletData: requesterWallet.walletData
-          }
-        }
-      },
-      include: {
-        wallet: true
-      }
+    // Check if requester already exists with wallet
+    let requester = await db.user.findFirst({
+      where: { email: 'demo@intent.market' },
+      include: { wallet: true }
     })
-    console.log(`Created requester: ${requester.email} with wallet: ${requester.wallet?.address}`)
+    
+    if (!requester) {
+      // Create requester user with wallet
+      const requesterWallet = await cdp.createWallet('demo-requester')
+      requester = await db.user.create({
+        data: {
+          email: 'demo@intent.market',
+          role: 'REQUESTER',
+          wallet: {
+            create: {
+              cdpWalletId: requesterWallet.cdpWalletId,
+              address: requesterWallet.address,
+              network: requesterWallet.network,
+              walletData: requesterWallet.walletData
+            }
+          }
+        },
+        include: {
+          wallet: true
+        }
+      })
+      console.log(`Created requester: ${requester.email} with wallet: ${requester.wallet?.address}`)
+    } else {
+      console.log(`Using existing requester: ${requester.email} with wallet: ${requester.wallet?.address}`)
+    }
     
     // Create agent users with wallets
     const agents = []
     for (let i = 1; i <= 8; i++) {
-      // Create CDP wallet for agent
-      const agentWallet = await cdp.createWallet(`agent${i}`)
+      // Check if agent already exists
+      let agent = await db.user.findFirst({
+        where: { email: `agent${i}@intent.market` },
+        include: { 
+          agentProfile: true,
+          wallet: true 
+        }
+      })
       
-      const agent = await db.user.create({
-        data: {
-          email: `agent${i}@intent.market`,
-          role: 'AGENT',
-          wallet: {
-            create: {
-              cdpWalletId: agentWallet.cdpWalletId,
-              address: agentWallet.address,
-              network: agentWallet.network,
-              walletData: agentWallet.walletData
+      if (!agent) {
+        // Create CDP wallet for new agent
+        const agentWallet = await cdp.createWallet(`agent${i}`)
+        
+        agent = await db.user.create({
+          data: {
+            email: `agent${i}@intent.market`,
+            role: 'AGENT',
+            wallet: {
+              create: {
+                cdpWalletId: agentWallet.cdpWalletId,
+                address: agentWallet.address,
+                network: agentWallet.network,
+                walletData: agentWallet.walletData
+              }
+            },
+            agentProfile: {
+              create: {
+                displayName: `Agent ${i}`,
+                bio: `AI Agent ${i} specializing in various recommendations`,
+                personality: getPersonality(i),
+                maxSubmissions: 3,
+                stakedAmount: new Decimal(10),
+                totalEarnings: new Decimal(0),
+                winRate: 0,
+                totalSubmissions: 0
+              }
             }
           },
-          agentProfile: {
-            create: {
+          include: {
+            agentProfile: true,
+            wallet: true
+          }
+        })
+        console.log(`Created agent: ${agent.email} with wallet: ${agent.wallet?.address}`)
+      } else {
+        // Update or create agent profile if missing
+        if (!agent.agentProfile) {
+          await db.agentProfile.create({
+            data: {
+              userId: agent.id,
               displayName: `Agent ${i}`,
               bio: `AI Agent ${i} specializing in various recommendations`,
               personality: getPersonality(i),
@@ -107,15 +187,18 @@ export async function POST(req: NextRequest) {
               winRate: 0,
               totalSubmissions: 0
             }
-          }
-        },
-        include: {
-          agentProfile: true,
-          wallet: true
+          })
+          agent = await db.user.findUnique({
+            where: { id: agent.id },
+            include: { agentProfile: true, wallet: true }
+          })
         }
-      })
-      agents.push(agent)
-      console.log(`Created agent: ${agent.email} with wallet: ${agent.wallet?.address}`)
+        console.log(`Using existing agent: ${agent?.email} with wallet: ${agent?.wallet?.address}`)
+      }
+      
+      if (agent) {
+        agents.push(agent)
+      }
     }
 
     // Create sample intention
