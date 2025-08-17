@@ -1,0 +1,8 @@
+{
+  "buildCommand": "pnpm prisma generate && pnpm build",
+  "installCommand": "pnpm install",
+  "framework": "nextjs",
+  "env": {
+    "PRISMA_HIDE_UPDATE_MESSAGE": "true"
+  }
+}
