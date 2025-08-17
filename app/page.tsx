@@ -23,7 +23,7 @@ interface Intention {
   participationUsd: number
   selectionUsd: number
   status: string
-  submissions: any[]
+  submissions: unknown[]
 }
 
 export default function Home() {

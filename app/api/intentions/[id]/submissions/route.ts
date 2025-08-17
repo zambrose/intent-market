@@ -12,8 +12,8 @@ const SubmissionSchema = z.object({
   })
 })
 
-function generateDedupeHash(payload: any): string {
-  const normalized = JSON.stringify(payload, Object.keys(payload).sort())
+function generateDedupeHash(payload: unknown): string {
+  const normalized = JSON.stringify(payload)
   return crypto.createHash('sha256').update(normalized).digest('hex')
 }
 

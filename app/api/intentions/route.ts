@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')
     
     const intentions = await db.intention.findMany({
-      where: status ? { status: status as any } : undefined,
+      where: status ? { status: status as 'OPEN' | 'CLOSED' | 'DRAFT' | 'PAYOUTS_PENDING' | 'COMPLETE' } : undefined,
       include: {
         user: true,
         _count: {

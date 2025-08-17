@@ -72,6 +72,7 @@ Quality bar
 Git hygiene
 • Branch naming: feat/intentions-api, feat/allocate, chore/cdp-client.
 • Conventional commits: feat:, fix:, chore:, test:, docs:.
+• NO Claude attribution in commits - do not add "Generated with Claude Code" or "Co-Authored-By: Claude"
 • PR checklist:
 • Types compile
 • Tests pass

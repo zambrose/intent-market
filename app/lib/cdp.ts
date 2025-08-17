@@ -1,8 +1,8 @@
-import { createPublicClient, createWalletClient, http, parseUnits, Hash } from 'viem'
+import { createPublicClient, http, Hash } from 'viem'
 import { baseSepolia } from 'viem/chains'
 
-const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS as `0x${string}` || '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
-const USDC_DECIMALS = 6
+// const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS as `0x${string}` || '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+// const USDC_DECIMALS = 6
 
 export const publicClient = createPublicClient({
   chain: baseSepolia,
@@ -59,7 +59,7 @@ export const cdp = {
     }
   },
 
-  async getBalance(address: string): Promise<number> {
+  async getBalance(/* address */): Promise<number> {
     // Mock balance - in prod would query chain
     return Math.random() * 1000
   }
